@@ -1,0 +1,133 @@
+{
+	"info": {
+		"name": "FollowUpAgent – API Contract v1.0",
+		"description": "How CRM and the local AI service talk to each other.\n\n1. CRM pushes candidate info + audio link to AI.\n2. AI runs Speech-to-Text + LLM in the background.\n3. AI posts the result back to CRM via webhook.\n\nAI runs on localhost – no internet needed."
+	},
+	"item": [
+		{
+			"name": "1. Submit candidate audio for analysis",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					},
+					"raw": "{\n  \"ssn\": \"079099123456\",\n  \"candidate_name\": \"Nguyen Van A\",\n  \"audio_url\": \"http://{{crm_server_ip}}/files/079099123456_interview.mp3\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/v1/candidates/analyze",
+					"protocol": "http",
+					"host": [
+						"127.0.0.1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"v1",
+						"candidates",
+						"analyze"
+					]
+				},
+				"description": "CRM sends candidate info here. Pass the audio as a URL – not a file upload."
+			},
+			"response": [
+				{
+					"name": "202 – queued, processing in background",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"ssn\": \"079099123456\",\n  \"candidate_name\": \"Nguyen Van A\",\n  \"audio_url\": \"http://{{crm_server_ip}}/files/079099123456_interview.mp3\"\n}"
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8000/api/v1/candidates/analyze",
+							"protocol": "http",
+							"host": [
+								"127.0.0.1"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"v1",
+								"candidates",
+								"analyze"
+							]
+						}
+					},
+					"status": "Accepted",
+					"code": 202,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"task_id\": \"TASK-a1b2c3d4\",\n  \"status\": \"processing\",\n  \"message\": \"Audio received and is being processed in the background.\"\n}"
+				}
+			]
+		},
+		{
+			"name": "2. AI sends result back to CRM via webhook",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					},
+					"raw": "{\n  \"task_id\": \"TASK-a1b2c3d4\",\n  \"ssn\": \"079099123456\",\n  \"status\": \"completed\",\n  \"result\": {\n    \"summary\": \"Candidate has solid technical skills and communicates clearly. Expected salary: 15M VND.\",\n    \"recommended_message\": \"Hi Nguyen Van A, thank you for your interview. Our HR team will follow up with the official result within 2 business days.\"\n  }\n}"
+				},
+				"url": {
+					"raw": "http://{{crm_server_ip}}/webhook/candidate-recommendation",
+					"protocol": "http",
+					"host": [
+						"{{crm_server_ip}}"
+					],
+					"path": [
+						"webhook",
+						"candidate-recommendation"
+					]
+				},
+				"description": "AI posts the result here when it's done. CRM side needs to have this endpoint up and ready, otherwise the result gets dropped."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "ai_server_ip",
+			"value": "127.0.0.1",
+			"description": "Local machine running the AI service"
+		},
+		{
+			"key": "crm_server_ip",
+			"value": "192.168.1.200",
+			"description": "CRM server IP – get the real value from the CRM team"
+		}
+	]
+}
