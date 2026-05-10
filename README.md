@@ -1,12 +1,4 @@
-# FollowUpAgent – Weekly Progress Report
-
-> **Week:** May 5 – May 10, 2026  
-> **Team:** Datacore  
-> **Project:** FollowUpAgent – AI-powered HR Interview Analysis (POC)
-
----
-
-## 1. Project Overview
+# FollowUpAgent
 
 **FollowUpAgent** is an internal AI service that automates the analysis of candidate interview audio recordings. After processing, the system generates a recommended follow-up message for the HR team to review and send.
 
@@ -15,21 +7,11 @@
 - **AI Pipeline:** LangChain + Whisper (Speech-to-Text) + Local LLM
 - **Deployment:** On-premise, no internet connection required
 
----
-
-## 2. This Week's Progress
-
-| # | Task | Status |
-|---|------|--------|
-| 1 | Define system architecture (offline AI deployment) | ✅ Done |
-| 2 | Identify hardware requirements for Datacore | ✅ Done |
-| 3 | Design API contract with CRM team | ✅ Done |
-| 4 | Export Postman Collection for CRM integration | ✅ Done |
-| 5 | Write project README and weekly report | ✅ Done |
+> Weekly reports, infrastructure specs, and next steps are in the [`Reports/`](./Reports/) folder.
 
 ---
 
-## 3. System Architecture
+## 1. System Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -60,10 +42,10 @@
 
 ---
 
-## 4. API Contract Summary
+## 2. API Contract Summary
 
 The full API contract is available as a Postman Collection:  
-📄 `FollowUpAgent_API_Contract.postman_collection.json`
+📄 `FollowUpAgent_API_contract.json`
 
 Import it into Postman, set the two variables below, and you're ready to test.
 
@@ -72,7 +54,7 @@ Import it into Postman, set the two variables below, and you're ready to test.
 | Item | Value |
 |------|-------|
 | **Method** | `POST` |
-| **Endpoint** | `http://{ai_server_ip}:8000/api/v1/candidates/analyze` |
+| **Endpoint** | `http://127.0.0.1:8000/api/v1/candidates/analyze` |
 | **Content-Type** | `application/json` |
 
 **Request body:**
@@ -93,7 +75,7 @@ Import it into Postman, set the two variables below, and you're ready to test.
 }
 ```
 
-> ⚠️ **CRM must send audio as a URL (internal link), NOT as a direct file upload.**
+> Note: pass the audio as an internal URL, not a file upload.
 
 ---
 
@@ -105,7 +87,7 @@ Import it into Postman, set the two variables below, and you're ready to test.
 | **Endpoint** | `http://{crm_server_ip}/webhook/candidate-recommendation` |
 | **Content-Type** | `application/json` |
 
-> ⚠️ **CRM must implement and expose this endpoint to receive the AI result.**
+> Note: CRM needs to have this endpoint up before the AI finishes – otherwise the result gets dropped.
 
 **Payload AI will send:**
 ```json
@@ -115,39 +97,8 @@ Import it into Postman, set the two variables below, and you're ready to test.
   "status": "completed",
   "result": {
     "summary": "Candidate has solid technical skills and communicates clearly. Expected salary: 15M VND.",
-    "recommended_message": "Hi Nguyen Van A, thank you for your interview. Our HR team will follow up with the official result within 2 business days."
+    "recommended_message": "Chào anh Nguyễn Văn A, cảm ơn anh đã tham gia phỏng vấn. Chúng tôi sẽ thông báo kết quả chính thức trong vòng 2 ngày làm việc tới. Trân trọng."
   }
 }
 ```
 
----
-
-## 5. Infrastructure Requirements (For Datacore)
-
-Datacore is expected to provision the following server by **May 12, 2026**:
-
-| Component | Minimum Requirement |
-|-----------|-------------------|
-| **CPU** | 12–16 vCPU |
-| **RAM** | 32 GB |
-| **GPU** | 1× NVIDIA GPU with **≥ 24GB VRAM** (e.g., RTX 3090, RTX 4090, A10G, L4) |
-| **Storage** | 200 GB SSD |
-| **OS** | Ubuntu 22.04 / 24.04 |
-| **Network** | Internal only – no internet access required |
-| **Database** | PostgreSQL 15+ |
-
-> **Why GPU?** Running both Whisper (Speech-to-Text) and a local LLM (7–8B parameters, e.g., Llama-3-8B or Qwen-2.5-7B) in production requires at least 24GB VRAM for acceptable response time. CPU-only execution would result in processing times of several minutes per audio file.
-
----
-
-## 6. Next Steps
-
-| # | Task | Target Date | Owner |
-|---|------|-------------|-------|
-| 1 | Datacore provisions and hands over server | May 12, 2026 | Datacore |
-| 2 | API alignment meeting with CRM + all 3 teams | Week 1, May | All teams |
-| 3 | CRM implements Webhook endpoint | TBD | CRM team |
-| 4 | Set up FastAPI project skeleton | After server handover | Datacore team |
-| 5 | Integrate Whisper (STT) module | After server handover | Datacore team |
-| 6 | Integrate local LLM via vLLM/Ollama | After server handover | Datacore team |
-| 7 | End-to-end POC test with real audio sample | TBD | All teams |
