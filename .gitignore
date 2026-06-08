@@ -1,0 +1,37 @@
+# -------------------------------------------------------
+# .gitignore - FollowUpAgent
+# -------------------------------------------------------
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Environment Variables (SENSITIVE!)
+.env
+
+# Temporary audio files
+data/
+
+# Log files
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
