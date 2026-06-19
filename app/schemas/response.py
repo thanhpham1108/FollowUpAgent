@@ -1,50 +1,88 @@
 # -------------------------------------------------------
 # app/schemas/response.py
-# Cấu trúc JSON trả về CRM (Webhook payload)
+# Cấu trúc JSON trả về CRM hoặc Dashboard (Response / Webhook Payloads)
 # -------------------------------------------------------
-# Models:
-#
-# 1. TaskAcceptedResponse (trả về ngay khi nhận request)
-#   - task_id: str       → "TASK-a1b2c3d4"
-#   - status: str        → "processing"
-#   - message: str       → "Audio received and is being processed..."
-#
-# 2. AnalysisResult (kết quả phân tích từ LLM)
-#   - summary: str               → Tóm tắt cuộc phỏng vấn
-#   - recommended_message: str   → Tin nhắn follow-up gợi ý
-#
-# 3. WebhookPayload (gửi về CRM qua webhook)
-#   - task_id: str
-#   - ssn: str
-#   - status: str                → "completed" | "failed"
-#   - result: AnalysisResult?
-#   - error: str?
-#
-# 4. HealthResponse
-#   - status: str
-#   - uptime_seconds: float
-#   - llm_ready: bool
-#
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime
 
-class TaskAcceptedResponse(BaseModel):
-    task_id: str
-    status: str
-    message: str
 
+# ─── 1. Phản hồi tức thời khi nhận Request (API Responses) ─────────────────────────
+class SalesCallResponse(BaseModel):
+    """Trả về ngay sau khi nhận Sales Call Request để xử lý bất đồng bộ"""
+    task_id: str = Field(..., description="Mã task xử lý (Ví dụ: TASK-a1b2c3d4)")
+    status: str = Field("processing", description="Trạng thái ban đầu")
+    message: str = Field("Audio received and is being processed...", description="Thông báo hệ thống")
+
+
+class CandidateAnalyzeResponse(BaseModel):
+    """Trả về ngay sau khi nhận HR Candidate Request để xử lý bất đồng bộ"""
+    task_id: str = Field(..., description="Mã task xử lý (Ví dụ: TASK-a1b2c3d4)")
+    status: str = Field("processing", description="Trạng thái ban đầu")
+    message: str = Field("Audio received and is being processed...", description="Thông báo hệ thống")
+
+
+# ─── 2. Cấu trúc kết quả phân tích từ LLM ───────────────────────────────────────
 class AnalysisResult(BaseModel):
-    summary: str
-    recommended_message: str
+    """Chi tiết kết quả xử lý từ mô hình AI (STT & LLM)"""
+    summary: str = Field(..., description="Tóm tắt cuộc gọi/phỏng vấn")
+    recommended_message: str = Field(..., description="Tin nhắn follow-up gợi ý cho kênh tương tác")
 
-class WebhookPayload(BaseModel):
+
+# ─── 3. Webhook Payloads (AI → CRM) ─────────────────────────────────────────────
+class SalesWebhookResult(BaseModel):
+    """AI → CRM: Kết quả phân tích cuộc gọi Sales gửi qua Webhook"""
     task_id: str
-    ssn: str
-    status: str
+    customer_id: str
+    status: str = Field(..., description="completed | failed")
     result: Optional[AnalysisResult] = None
     error: Optional[str] = None
 
-class HealthResponse(BaseModel):
+
+class HRWebhookResult(BaseModel):
+    """AI → CRM: Kết quả phân tích phỏng vấn HR gửi qua Webhook"""
+    task_id: str
+    ssn: str
+    status: str = Field(..., description="completed | failed")
+    result: Optional[AnalysisResult] = None
+    error: Optional[str] = None
+
+
+# ─── 4. Cấu trúc chi tiết hiển thị cho Dashboard / Client ──────────────────────────
+class FollowUpTaskSchema(BaseModel):
+    """Chi tiết về một lịch trình gửi tin nhắn follow-up (D+1, D+3, D+7)"""
+    id: str
+    day_offset: int
+    scheduled_at: datetime
+    channel: str
+    message_content: Optional[str] = None
+    action_suggestion: Optional[str] = None
     status: str
+    is_enabled: bool
+
+    class Config:
+        from_attributes = True  # Hỗ trợ tự động parse từ SQLAlchemy Model ở Pydantic v2
+
+
+class CallRecordDetailSchema(BaseModel):
+    """Thông tin tổng quan của một cuộc gọi kèm danh sách các follow-up tasks liên quan"""
+    id: str
+    context_type: str  # sales | hr
+    contact_name: str
+    summary: Optional[str] = None
+    sentiment: Optional[str] = None
+    intent: Optional[str] = None
+    status: str
+    followup_tasks: List[FollowUpTaskSchema] = []
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ─── 5. Kiểm tra trạng thái hệ thống (Health Check) ──────────────────────────────
+class HealthResponse(BaseModel):
+    """Trả về trạng thái hoạt động của Service và các Model liên quan"""
+    status: str = Field("healthy")
     uptime_seconds: float
-    llm_ready: bool# -------------------------------------------------------
+    llm_ready: bool
