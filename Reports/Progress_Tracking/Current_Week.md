@@ -1,17 +1,25 @@
-# Báo cáo Tiến độ Tuần này (Phase 1)
+# Tình trạng hiện tại — Tuần 23/06/2026
 
-**Giai đoạn hiện tại**: Phase 1 - Foundation & Integration
-**Mục tiêu**: Xây dựng nền tảng vững chắc để nhận request từ CRM trước khi nhúng AI.
+**Giai đoạn hiện tại**: Phase 2 - AI Pipeline Core ✅ (phần lớn hoàn thành)
+**Cập nhật lần cuối**: 23/06/2026
 
-## 🎯 Những việc ĐÃ HOÀN THÀNH trong tuần
-1. **Thống nhất API Contract**: Đã chốt cấu trúc JSON nhận từ CRM và Webhook payload trả về. File hợp đồng đã sẵn sàng (`FollowUpAgent_API_contract.json`) để bàn giao cho team CRM.
-2. **Khởi tạo FastAPI & Cấu trúc dự án**: Đã tạo thành công khung dự án đạt chuẩn production (chia các thư mục `api`, `core`, `schemas`, `services`), chuẩn bị sẵn sàng cho việc mở rộng (scaling) sau này.
-3. **Hoàn thành Webhook Endpoint (API)**: 
-   - Lập trình xong Endpoint `POST /api/v1/candidates/analyze`.
-   - Viết xong các Pydantic Schemas để tự động kiểm tra tính hợp lệ của dữ liệu đầu vào.
-   - Thiết lập thành công tính năng **Background Tasks**, giúp API trả lời CRM ngay lập tức (Status 202) mà không bắt CRM phải chờ đợi AI phân tích xong.
+## ✅ Phase 1 — HOÀN THÀNH TOÀN BỘ
+Tất cả 8/8 tasks của Phase 1 đã done. Xem chi tiết trong [Master_Plan.md](Master_Plan.md).
 
-## 🚀 Những việc ĐANG / SẼ LÀM tiếp theo
-1. **Mock pipeline (Đang thực hiện)**: Hiện tại Background Task mới chỉ dùng lệnh `sleep` để giả lập thời gian trễ. Nếu cần, ta sẽ bổ sung log chi tiết hơn trước khi chuyển sang nối AI thật ở Phase 2.
-2. **Kết nối thử CRM (Chưa bắt đầu)**: Đây là bước quan trọng nhất còn lại của tuần này. Cần phối hợp với team CRM để họ gửi thử 1 request thật vào API của chúng ta xem dữ liệu có lưu thông mượt mà không.
-3. **Chuẩn bị cho Phase 2**: Cài đặt thư viện Whisper và nghiên cứu prompt cho LangChain.
+## ✅ Tuần vừa qua đã hoàn thành (Commits ngày 19/06/2026)
+1. **Cấu hình hệ thống** (`config.py`, `database.py`): Pydantic BaseSettings v2, kết nối PostgreSQL.
+2. **Database Schema** (`models.py`): Bảng `CallRecord` + `FollowUpTask`, hỗ trợ dual-context Sales & HR.
+3. **API Schemas mở rộng** (`request.py`, `response.py`): Tách riêng 3 request schema, 5 nhóm response schema.
+4. **Whisper STT pipeline** (`audio_service.py`): Download → validate → transcribe → cleanup file tạm.
+5. **Local LLM Service** (`llm_service.py`): Singleton llama-cpp, Prompt V1 Sales & HR, safe JSON parser.
+6. **Webhook & Đa kênh** (`webhook_service.py`): Exponential backoff retry, Zalo OA, Email router.
+7. **Khám phá API đối tác**: Đã test `GET /deals`, `POST /llm/recommend` tại server `192.168.25.175:8002`.
+
+## ⏳ Đang thực hiện / Tuần tới
+1. **Fix 2 lỗi syntax** trong `audio_service.py` (dòng 72) và `llm_service.py` (dòng 94-95) — Cần làm NGAY.
+2. **Wire pipeline vào endpoint chính**: `analyze` endpoint → gọi `audio_service` → `llm_service` → lưu DB → `webhook_service`.
+3. **Cấu hình .env thật**: Download file model GGUF, điền Zalo OA token, cấu hình DB production.
+4. **Test end-to-end** với file ghi âm mẫu.
+5. **Bắt đầu Phase 3**: Rule Engine — lịch follow-up D+1, D+3, D+7.
+
+> 📄 Xem báo cáo chi tiết đầy đủ tại: [Weekly_Report_23062026.md](Weekly_Report_23062026.md)

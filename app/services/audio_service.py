@@ -1,6 +1,8 @@
 import os
+import asyncio
 import httpx
-import whisper
+from transformers import pipeline
+import torch
 import logging
 from pathlib import Path
 from app.core.config import settings
@@ -22,9 +24,10 @@ _model = None
 def get_whisper_model():
     global _model
     if _model is None:
-        logger.info(f"Loading Whisper model: {settings.WHISPER_MODEL}")
-        _model = whisper.load_model(settings.WHISPER_MODEL, device=settings.WHISPER_DEVICE)
-        logger.info("Whisper model loaded.")
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Loading PhoWhisper model: {settings.PHOWHISPER_MODEL} on {device}")
+        _model = pipeline("automatic-speech-recognition", model=settings.PHOWHISPER_MODEL, device=device)
+        logger.info("PhoWhisper model loaded.")
     return _model
 
 
@@ -69,7 +72,7 @@ async def download_audio(audio_url: str, task_id: str) -> Path:
                 # Đề phòng trường hợp server không trả về Content-Length, ta cộng dồn để check dung lượng
                 bytes_downloaded = 0
                 with open(dest_file_path, "wb") as f:
-                    async edit_iterator in response.aiter_bytes(chunk_size=8192):
+                    async for edit_iterator in response.aiter_bytes(chunk_size=8192):
                         bytes_downloaded += len(edit_iterator)
                         if bytes_downloaded > max_bytes:
                             # Xóa file tạm đang ghi dở trước khi raise lỗi
@@ -94,44 +97,38 @@ async def download_audio(audio_url: str, task_id: str) -> Path:
 
 def transcribe_audio(file_path: Path) -> dict:
     """
-    Chạy Whisper STT trên file audio cục bộ.
+    Chạy PhoWhisper STT trên file audio cục bộ.
     Trả về dict với transcript, language, segments.
     """
     model = get_whisper_model()
     str_path = str(file_path.resolve())
     logger.info(f"Đang tiến hành nhận diện (STT): {str_path}")
 
-    result = model.transcribe(
-        str_path,
-        language="vi",            # Ép dịch tiếng Việt theo yêu cầu hệ thống
-        task="transcribe",
-        verbose=False,
-        fp16=False,               # Chạy mặc định trên CPU (hoặc GPU ko hỗ trợ nửa chính xác)
-    )
+    result = model(str_path)
 
     return {
-        "text": result["text"].strip(),
-        "language": result.get("language", "vi"),
-        "segments": result.get("segments", []),
+        "text": result.get("text", "").strip(),
+        "language": "vi",  # PhoWhisper chủ yếu hỗ trợ tiếng Việt
+        "segments": result.get("chunks", []),
     }
 
 
 async def speech_to_text(audio_url: str, task_id: str) -> str:
     """
-    Full pipeline: download audio → transcribe → cleanup.
-    Trả về chuỗi văn bản (transcript).
+    Full pipeline: download audio → transcribe (non-blocking) → cleanup.
+    Dùng asyncio.to_thread để chạy STT trong thread riêng, giải phóng event loop của FastAPI.
     """
     file_path: Path = None
     try:
-        # Cập nhật truyền thêm task_id phục vụ đặt tên file định danh
         file_path = await download_audio(audio_url, task_id)
-        result = transcribe_audio(file_path)
+        # ❗ Quan trọng: transcribe_audio là hàm đồng bộ (blocking).
+        # Bọ vào to_thread để server không bị đứng hình khi AI đang xử lý
+        result = await asyncio.to_thread(transcribe_audio, file_path)
         return result["text"]
     except Exception as e:
         logger.error(f"STT pipeline thất bại cho task {task_id} (URL: {audio_url}): {e}")
         raise
     finally:
-        # Dọn dẹp file sau khi xử lý xong (hoặc lỗi) tránh tràn ổ cứng
         if file_path and file_path.exists():
             file_path.unlink()
             logger.info(f"Đã dọn dẹp file tạm: {file_path}")

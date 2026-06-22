@@ -23,6 +23,8 @@ ENV/
 # Temporary audio files
 data/
 
+Reports/
+
 # Log files
 logs/
 

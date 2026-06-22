@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: followup-db
+    environment:
+      POSTGRES_DB: followup_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  followup-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: followup-agent-gpu
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data   # Mount thư mục audio tạm ra ngoài để dễ debug
+    env_file:
+      - .env               # Tự động đọc biến môi trường từ file .env
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      # Override DATABASE_URL để trỏ vào container db (thay vì localhost)
+      - DATABASE_URL=postgresql://postgres:password@db:5432/followup_agent
+    depends_on:
+      - db                 # Đảm bảo PostgreSQL khởi động trước FastAPI
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -2,6 +2,7 @@
 # app/services/llm_service.py
 # Giao tiếp với Local LLM (Load model, truyền input)
 # -------------------------------------------------------
+import asyncio
 import logging
 import json
 from pathlib import Path
@@ -76,6 +77,7 @@ class LLMService:
                 model_path=model_path,
                 n_ctx=4096,         # Số lượng token context tối đa
                 n_threads=4,        # Điều chỉnh số lượng luồng CPU tuỳ hệ thống
+                n_gpu_layers=settings.LLM_GPU_LAYERS,
                 verbose=False
             )
             logger.info("Local GGUF Model đã được tải thành công lên bộ nhớ.")
@@ -91,8 +93,7 @@ class LLMService:
         """Hàm bóc tách phần JSON thuần từ dữ liệu thô sinh ra bởi LLM"""
         text = text.strip()
         if text.startswith("```"):
-            text = text.split("
-```")[1]
+            text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
         text = text.strip()
@@ -102,10 +103,10 @@ class LLMService:
             logger.warning(f"Bóc tách JSON thất bại: {e}. Đoạn text gốc: {text[:150]}")
             return {}
 
-    async def analyze_audio(self, audio_path: Path, contact_name: str, context_type: str = "hr") -> AnalysisResult:
+    async def analyze_audio(self, transcript: str, contact_name: str, context_type: str = "hr") -> AnalysisResult:
         """
         Xử lý phân tích dữ liệu đa phương tiện từ tệp cục bộ hoặc bản dịch thô.
-        1. Đọc tệp/nội dung.
+        1. Nhận transcript (văn bản dịch từ âm thanh).
         2. Dựng Prompt Template tùy biến theo loại cấu trúc (Sales hoặc HR).
         3. Đẩy vào xử lý bằng Local GGUF Model.
         4. Trả ra dữ liệu chuẩn hóa dạng AnalysisResult.
@@ -113,20 +114,8 @@ class LLMService:
         if not self.is_ready():
             raise LLMProcessingError("Hệ thống AI chưa được tải thành công. Vui lòng thử lại sau.")
 
-        # LƯU Ý KỸ THUẬT: 
-        # Đối với các dòng máy chủ không có phần cứng tăng tốc xử lý âm thanh đầu vào trực tiếp (Multimodal Audio Audio-LLM),
-        # ta có thể tận dụng văn bản thô từ module AudioService (Whisper STT) đã viết ở bước trước làm 'context_data'.
-        # Dưới đây là phương thức giả lập đọc dữ liệu từ tệp/nội dung văn bản dịch:
         try:
-            context_data = ""
-            if audio_path.suffix in [".txt", ".json"]:
-                with open(audio_path, "r", encoding="utf-8") as f:
-                    context_data = f.read()
-            else:
-                # Nếu là file định dạng âm thanh thực tế và model GGUF cấu hình là mô hình hiểu âm thanh (như Qwen2-Audio-GGUF)
-                # Ta có thể truyền bytes thô hoặc dùng cơ chế nạp của llama-cpp. 
-                # Ở đây chúng ta bọc ngữ cảnh hội thoại để đảm bảo tính ổn định:
-                context_data = f"[Dữ liệu âm thanh tại hệ thống: {audio_path.name}]"
+            context_data = transcript
 
             # 2. Lựa chọn Template thích hợp cho từng kịch bản nghiệp vụ
             if context_type == "sales":
@@ -137,12 +126,16 @@ class LLMService:
             logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name}")
             
             # 3. Gửi Prompt vào Local LLM GGUF
-            response = self._model(
-                prompt,
-                max_tokens=1024,
-                temperature=0.3,
-                stop=["<\/s>", "</s>"]
-            )
+            # ❗ Quan trọng: self._model() là hàm đồng bộ (blocking), phải bọc vào to_thread
+            # để server không bị "freeze" khi AI đang suy nghĩ
+            def _run_llm():
+                return self._model(
+                    prompt,
+                    max_tokens=1024,
+                    temperature=0.3,
+                    stop=["<\/s>", "</s>"]
+                )
+            response = await asyncio.to_thread(_run_llm)
             
             raw_text = response["choices"][0]["text"]
             parsed_data = self._safe_parse_json(raw_text)
