@@ -26,6 +26,9 @@ class CandidateAnalyzeResponse(BaseModel):
 class AnalysisResult(BaseModel):
     """Chi tiết kết quả xử lý từ mô hình AI (STT & LLM)"""
     summary: str = Field(..., description="Tóm tắt cuộc gọi/phỏng vấn")
+    status_group: int = Field(..., description="Thuộc nhóm trạng thái nào (1 đến 5)")
+    reason_code: str = Field(..., description="Mã lý do chi tiết (Ví dụ: KNM_1, SUY_NGHI_THEM, CHO_CCCD)")
+    appointment_date: Optional[str] = Field(None, description="Ngày hẹn thực tế nếu thuộc Nhóm 4")
     recommended_message: str = Field(..., description="Tin nhắn follow-up gợi ý cho kênh tương tác")
 
 

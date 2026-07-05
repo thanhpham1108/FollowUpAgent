@@ -62,6 +62,7 @@ class CallRecord(Base):
 
     # Quan hệ
     followup_tasks = relationship("FollowUpTask", back_populates="call_record")
+    audit_logs = relationship("AuditLog", back_populates="call_record")
 
 
 class FollowUpTask(Base):
@@ -99,3 +100,22 @@ class FollowUpTask(Base):
 
     # Quan hệ
     call_record = relationship("CallRecord", back_populates="followup_tasks")
+
+
+class AuditLog(Base):
+    """
+    Lưu lịch sử đánh giá và quyết định của hệ thống AI/Rule Engine.
+    """
+    __tablename__ = "audit_logs"
+
+    id = Column(String, primary_key=True, default=lambda: f"AUDIT-{uuid.uuid4().hex[:8]}")
+    call_record_id = Column(String, ForeignKey("call_records.id"), nullable=False)
+
+    action = Column(String, nullable=False)  # Ví dụ: "LLM_ANALYSIS", "RULE_EVALUATION"
+    decision = Column(Text, nullable=False)  # Tóm tắt quyết định
+    details = Column(Text, nullable=True)     # Raw JSON data or prompt
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Quan hệ
+    call_record = relationship("CallRecord", back_populates="audit_logs")

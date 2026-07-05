@@ -19,6 +19,7 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data   # Mount thư mục audio tạm ra ngoài để dễ debug
+      - ./models:/app/models # Mount thư mục models chứa file GGUF từ host vào container
     env_file:
       - .env               # Tự động đọc biến môi trường từ file .env
     environment:

@@ -24,6 +24,7 @@ from app.schemas.response import CandidateAnalyzeResponse
 from app.services.audio_service import speech_to_text
 from app.services.llm_service import llm_service
 from app.services.webhook_service import notify_crm_hr_webhook
+from app.services.rule_engine import rule_engine_service
 from app.core.database import SessionLocal
 from app.core.models import CallRecord, CallStatus, ContextType
 
@@ -68,8 +69,13 @@ async def process_candidate_audio(task_id: str, request: CandidateAnalyzeRequest
         
         record.summary = analysis_result.summary
         record.recommended_message = analysis_result.recommended_message
+        record.intent = analysis_result.reason_code
         record.status = CallStatus.COMPLETED
         db.commit()
+
+        # 3.5 Chạy Rule Engine
+        logger.info(f"[Task {task_id}] Gọi Rule Engine sinh lịch Follow-up...")
+        rule_engine_service.evaluate_rules(call_record=record, analysis=analysis_result, db=db)
 
         # 4. Gửi Webhook trả kết quả về CRM
         logger.info(f"[Task {task_id}] Hoàn thành phân tích. Gửi webhook về CRM...")

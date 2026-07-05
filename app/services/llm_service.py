@@ -27,23 +27,35 @@ try:
     from app.prompts.analysis_prompts import SALES_ANALYSIS_TEMPLATE, HR_ANALYSIS_TEMPLATE
 except ImportError:
     # Fallback lại các Prompt Template gốc của bạn nếu chưa kịp tách file
-    SALES_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi bán hàng. Hãy phân tích cuộc hội thoại sau và trả về JSON.
+    SALES_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi bán hàng/tư vấn. Hãy phân tích cuộc hội thoại sau và phân loại khách hàng vào 1 trong 5 nhóm.
+Nhóm 1: Chưa tư vấn
+Nhóm 2: Cần gọi lại (Lý do: KNM_1, KNM_4, SUY_NGHI_THEM, KHACH_BAN)
+Nhóm 3: UV Tiềm năng (Lý do: CHUA_CHOT_NGAY, CHO_CCCD, HEN_XA)
+Nhóm 4: Hẹn phỏng vấn (Lý do: HEN_PHONG_VAN)
+Nhóm 5: Đi làm tạm tính (Lý do: DI_LAM)
+
 Tên khách hàng: {contact_name}
 Nội dung hội thoại:
 \"\"\"
 {context_data}
 \"\"\"
 Trả về JSON đúng cấu trúc:
-{{"summary": "Tóm tắt ngắn gọn cuộc gọi", "recommended_message": "Tin nhắn follow-up gợi ý"}}"""
+{{"summary": "Tóm tắt cuộc gọi", "status_group": 1, "reason_code": "Mã lý do", "appointment_date": null, "recommended_message": "Tin nhắn gợi ý"}}"""
     
-    HR_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích phỏng vấn tuyển dụng. Hãy phân tích cuộc phỏng vấn sau và trả về JSON.
+    HR_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi tuyển dụng. Hãy phân tích đoạn hội thoại sau và phân loại ứng viên vào 1 trong 5 nhóm.
+Nhóm 1: Chưa tư vấn
+Nhóm 2: Cần gọi lại (Lý do: KNM_1, KNM_4, SUY_NGHI_THEM, KHACH_BAN)
+Nhóm 3: UV Tiềm năng (Lý do: CHUA_CHOT_NGAY, CHO_CCCD, HEN_XA)
+Nhóm 4: Hẹn phỏng vấn (Lý do: HEN_PHONG_VAN)
+Nhóm 5: Đi làm tạm tính (Lý do: DI_LAM)
+
 Tên ứng viên: {contact_name}
-Nội dung cuộc phỏng vấn:
+Nội dung cuộc gọi:
 \"\"\"
 {context_data}
 \"\"\"
 Trả về JSON đúng cấu trúc:
-{{"summary": "Tóm tắt năng lực ứng viên", "recommended_message": "Tin nhắn follow-up gửi ứng viên"}}"""
+{{"summary": "Tóm tắt cuộc gọi", "status_group": 1, "reason_code": "Mã lý do", "appointment_date": null, "recommended_message": "Tin nhắn gợi ý"}}"""
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +155,9 @@ class LLMService:
             # 4. Ép kiểu định dạng và trả về Object Pydantic AnalysisResult chuẩn hóa
             return AnalysisResult(
                 summary=parsed_data.get("summary", "Không thể trích xuất phần tóm tắt."),
+                status_group=int(parsed_data.get("status_group", 1)),
+                reason_code=str(parsed_data.get("reason_code", "UNKNOWN")),
+                appointment_date=parsed_data.get("appointment_date"),
                 recommended_message=parsed_data.get("recommended_message", "Không thể tạo tin nhắn gợi ý.")
             )
 

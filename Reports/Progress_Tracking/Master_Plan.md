@@ -30,10 +30,10 @@
 ## Phase 3: Rule Engine & Intelligence Layer
 | Task | Thời gian dự kiến | Trạng thái | Ghi chú |
 |---|---|---|---|
-| Kết nối DB Rule (D + 1, D + 3, D + 7) | Tuần 9-10 | ❌ Chưa bắt đầu | |
-| Map Intent -> Rule | Tuần 9-10 | ❌ Chưa bắt đầu | |
-| Query DB để quyết định ngày hẹn | Tuần 11-12 | ❌ Chưa bắt đầu | |
-| Tạo Audit Log (AI decision tracking) | Tuần 11-12 | ❌ Chưa bắt đầu | |
+| Kết nối DB Rule (D + 1, D + 3, D + 7) | Tuần 9-10 | ✅ Hoàn thành | Đã chuyển sang Rule 5 nhóm trạng thái (10 phút, 1 ngày, 2 ngày, 3 ngày) |
+| Map Intent -> Rule | Tuần 9-10 | ✅ Hoàn thành | Prompt ép LLM sinh ra `status_group` và `reason_code` cho Rule Engine |
+| Query DB để quyết định ngày hẹn | Tuần 11-12 | ✅ Hoàn thành | Rule Engine tự trích xuất `appointment_date` (Nhóm 4) và lập lịch |
+| Tạo Audit Log (AI decision tracking) | Tuần 11-12 | ✅ Hoàn thành | Bảng `AuditLog` lưu lại raw JSON và quyết định của AI |
 
 ## Phase 4: Agent Workflow hoàn chỉnh
 | Task | Thời gian dự kiến | Trạng thái | Ghi chú |
