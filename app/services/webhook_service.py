@@ -62,7 +62,8 @@ async def deliver_webhook(
         return False
 
     # Chuyển đổi payload sang dict nếu client truyền vào dạng Pydantic Model
-    json_data = payload.model_dump() if isinstance(payload, BaseModel) else payload
+    # Sử dụng mode="json" để tự động serialize các kiểu dữ liệu phức tạp như datetime, Enum
+    json_data = payload.model_dump(mode="json") if isinstance(payload, BaseModel) else payload
 
     max_retries = settings.WEBHOOK_MAX_RETRIES
     base_backoff = settings.WEBHOOK_RETRY_BACKOFF

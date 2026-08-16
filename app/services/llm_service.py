@@ -1,28 +1,16 @@
 # -------------------------------------------------------
 # app/services/llm_service.py
-# Giao tiếp với Local LLM (Load model, truyền input)
+# Giao tiếp với Local LLM (Ollama API) thay vì file GGUF
 # -------------------------------------------------------
-import asyncio
 import logging
 import json
-from pathlib import Path
+import httpx
 from typing import Optional
-
-# Thư viện llama-cpp-python cho mô hình GGUF cục bộ
-try:
-    from llama_cpp import Llama
-except ImportError:
-    # Dự phòng giả lập nếu môi trường dev chưa cài compiled binary
-    class Llama:
-        def __init__(self, *args, **kwargs): pass
-        def __call__(self, *args, **kwargs): return {"choices": [{"text": "{}"}]}
 
 from app.core.config import settings
 from app.schemas.response import AnalysisResult
 from app.core.exceptions import LLMProcessingError
 
-# Import các mẫu prompt được quản lý tập trung từ thư mục app/prompts/
-# Giả định cấu trúc file từ sơ đồ folder trước đó của bạn
 try:
     from app.prompts.analysis_prompts import SALES_ANALYSIS_TEMPLATE, HR_ANALYSIS_TEMPLATE
 except ImportError:
@@ -62,7 +50,6 @@ logger = logging.getLogger(__name__)
 
 class LLMService:
     _instance: Optional["LLMService"] = None
-    _model: Optional[Llama] = None
 
     def __new__(cls, *args, **kwargs):
         """Pattern: Singleton — Đảm bảo chỉ tạo duy nhất 1 instance hệ thống"""
@@ -71,35 +58,21 @@ class LLMService:
         return cls._instance
 
     def load_model(self) -> None:
-        """Load GGUF model qua llama-cpp-python khi hệ thống startup"""
-        if self._model is not None:
-            logger.info("Local GGUF Model đã được load từ trước.")
-            return
-
-        model_path = settings.LLM_MODEL_PATH
-        if not model_path or not Path(model_path).exists():
-            logger.error(f"Không tìm thấy file model GGUF tại đường dẫn: {model_path}")
-            # Nếu không tìm thấy file GGUF cục bộ, hệ thống sẽ log cảnh báo dữ dội
-            return
-
+        """Kiểm tra kết nối tới Ollama khi hệ thống startup"""
+        logger.info(f"Đang kiểm tra kết nối tới Ollama tại: {settings.OLLAMA_API_BASE_URL}")
         try:
-            logger.info(f"Đang tiến hành load Local GGUF Model tại: {model_path}")
-            # Khởi tạo mô hình cục bộ hỗ trợ tính toán trên CPU/GPU
-            self._model = Llama(
-                model_path=model_path,
-                n_ctx=4096,         # Số lượng token context tối đa
-                n_threads=4,        # Điều chỉnh số lượng luồng CPU tuỳ hệ thống
-                n_gpu_layers=settings.LLM_GPU_LAYERS,
-                verbose=False
-            )
-            logger.info("Local GGUF Model đã được tải thành công lên bộ nhớ.")
+            # Lấy status từ Ollama
+            response = httpx.get(f"{settings.OLLAMA_API_BASE_URL.replace('/v1', '')}/api/tags", timeout=5.0)
+            if response.status_code == 200:
+                logger.info(f"Kết nối Ollama thành công. Các model có sẵn: {[m['name'] for m in response.json().get('models', [])]}")
+            else:
+                logger.warning(f"Ollama phản hồi mã lỗi {response.status_code}")
         except Exception as e:
-            logger.error(f"Khởi tạo Llama-cpp thất bại: {e}")
-            self._model = None
+            logger.error(f"Không thể kết nối tới Ollama API: {e}. Vui lòng đảm bảo Ollama đang chạy ở cổng 11434.")
 
     def is_ready(self) -> bool:
-        """Kiểm tra xem model đã sẵn sàng hoạt động hay chưa"""
-        return self._model is not None
+        """Luôn trả về True vì Ollama chạy độc lập"""
+        return True
 
     def _safe_parse_json(self, text: str) -> dict:
         """Hàm bóc tách phần JSON thuần từ dữ liệu thô sinh ra bởi LLM"""
@@ -117,42 +90,43 @@ class LLMService:
 
     async def analyze_audio(self, transcript: str, contact_name: str, context_type: str = "hr") -> AnalysisResult:
         """
-        Xử lý phân tích dữ liệu đa phương tiện từ tệp cục bộ hoặc bản dịch thô.
-        1. Nhận transcript (văn bản dịch từ âm thanh).
-        2. Dựng Prompt Template tùy biến theo loại cấu trúc (Sales hoặc HR).
-        3. Đẩy vào xử lý bằng Local GGUF Model.
-        4. Trả ra dữ liệu chuẩn hóa dạng AnalysisResult.
+        Xử lý phân tích dữ liệu bằng cách gửi HTTP Request tới Ollama
         """
-        if not self.is_ready():
-            raise LLMProcessingError("Hệ thống AI chưa được tải thành công. Vui lòng thử lại sau.")
-
         try:
             context_data = transcript
 
-            # 2. Lựa chọn Template thích hợp cho từng kịch bản nghiệp vụ
+            # Lựa chọn Template
             if context_type == "sales":
                 prompt = SALES_ANALYSIS_TEMPLATE.format(contact_name=contact_name, context_data=context_data)
             else:
                 prompt = HR_ANALYSIS_TEMPLATE.format(contact_name=contact_name, context_data=context_data)
 
-            logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name}")
+            logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name} qua Ollama...")
             
-            # 3. Gửi Prompt vào Local LLM GGUF
-            # ❗ Quan trọng: self._model() là hàm đồng bộ (blocking), phải bọc vào to_thread
-            # để server không bị "freeze" khi AI đang suy nghĩ
-            def _run_llm():
-                return self._model(
-                    prompt,
-                    max_tokens=1024,
-                    temperature=0.3,
-                    stop=["<\/s>", "</s>"]
+            # Tạo payload chuẩn OpenAI API compatible cho Ollama
+            payload = {
+                "model": settings.OLLAMA_MODEL_NAME,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.0, # Giảm sáng tạo để lấy JSON chuẩn xác
+                "max_tokens": 1024
+            }
+
+            # Gửi HTTP Request bất đồng bộ
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{settings.OLLAMA_API_BASE_URL}/chat/completions",
+                    json=payload
                 )
-            response = await asyncio.to_thread(_run_llm)
+                response.raise_for_status()
+                data = response.json()
             
-            raw_text = response["choices"][0]["text"]
+            # Lấy kết quả từ Ollama
+            raw_text = data["choices"][0]["message"]["content"]
             parsed_data = self._safe_parse_json(raw_text)
 
-            # 4. Ép kiểu định dạng và trả về Object Pydantic AnalysisResult chuẩn hóa
+            # Ép kiểu định dạng và trả về Object Pydantic AnalysisResult chuẩn hóa
             return AnalysisResult(
                 summary=parsed_data.get("summary", "Không thể trích xuất phần tóm tắt."),
                 status_group=int(parsed_data.get("status_group", 1)),
@@ -161,6 +135,9 @@ class LLMService:
                 recommended_message=parsed_data.get("recommended_message", "Không thể tạo tin nhắn gợi ý.")
             )
 
+        except httpx.RequestError as e:
+            logger.error(f"Lỗi kết nối tới Ollama: {e}")
+            raise LLMProcessingError(f"Không thể kết nối tới Ollama API: {e}")
         except Exception as e:
             logger.error(f"Xử lý LLM thất bại cho đối tượng {contact_name}: {e}")
             raise LLMProcessingError(f"Quá trình phân tích dữ liệu hội thoại gặp sự cố cục bộ: {e}")

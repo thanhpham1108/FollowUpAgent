@@ -10,4 +10,4 @@ torch>=2.2.0
 torchaudio>=2.2.0
 librosa>=0.10.1
 soundfile>=0.12.1
-sqlalchemy>=2.0.0
+sqlalchemy>=2.0.0psycopg2-binary>=2.9.9

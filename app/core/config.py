@@ -47,12 +47,10 @@ class Settings(BaseSettings):
     WEBHOOK_MAX_RETRIES: int = 3
     WEBHOOK_RETRY_BACKOFF: float = 1.0
 
-    # AI Models (PhoWhisper & GGUF Local)
-    LLM_MODEL_PATH: str = ""  # <-- Thêm đường dẫn file GGUF theo yêu cầu comment
-    LLM_GPU_LAYERS: int = -1  # -1 để dùng GPU (nếu có), 0 để chạy thuần CPU
+    # AI Models
+    OLLAMA_API_BASE_URL: str = "http://localhost:11434/v1"
+    OLLAMA_MODEL_NAME: str = "qwen2.5:7b-instruct"
     PHOWHISPER_MODEL: str = "vinai/PhoWhisper-medium"
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3"
 
     # Zalo
     ZALO_OA_ACCESS_TOKEN: str = ""

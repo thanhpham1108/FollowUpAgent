@@ -8,6 +8,11 @@ services:
       POSTGRES_PASSWORD: password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d followup_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   followup-agent:
@@ -27,7 +32,13 @@ services:
       # Override DATABASE_URL để trỏ vào container db (thay vì localhost)
       - DATABASE_URL=postgresql://postgres:password@db:5432/followup_agent
     depends_on:
-      - db                 # Đảm bảo PostgreSQL khởi động trước FastAPI
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         reservations:

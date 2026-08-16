@@ -61,8 +61,8 @@ class CallRecord(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Quan hệ
-    followup_tasks = relationship("FollowUpTask", back_populates="call_record")
-    audit_logs = relationship("AuditLog", back_populates="call_record")
+    followup_tasks = relationship("FollowUpTask", back_populates="call_record", cascade="all, delete-orphan")
+    audit_logs = relationship("AuditLog", back_populates="call_record", cascade="all, delete-orphan")
 
 
 class FollowUpTask(Base):

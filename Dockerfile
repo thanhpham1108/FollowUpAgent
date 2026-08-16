@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libsndfile1 \
     build-essential \
     cmake \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Thiết lập python3.11 làm mặc định
