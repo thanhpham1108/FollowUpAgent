@@ -13,7 +13,9 @@ from app.core.exceptions import LLMProcessingError
 
 try:
     from app.prompts.analysis_prompts import SALES_ANALYSIS_TEMPLATE, HR_ANALYSIS_TEMPLATE
+    from app.prompts.system_prompts import SYSTEM_PROMPT
 except ImportError:
+    SYSTEM_PROMPT = "Bạn là chuyên viên phân tích cuộc gọi. Chỉ trả về JSON thuần."
     # Fallback lại các Prompt Template gốc của bạn nếu chưa kịp tách file
     SALES_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi bán hàng/tư vấn. Hãy phân tích cuộc hội thoại sau và phân loại khách hàng vào 1 trong 5 nhóm.
 Nhóm 1: Chưa tư vấn
@@ -103,14 +105,15 @@ class LLMService:
 
             logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name} qua Ollama...")
             
-            # Tạo payload chuẩn OpenAI API compatible cho Ollama
+            # Tạo payload chuẩn OpenAI API compatible cho Ollama — dùng system prompt V2
             payload = {
                 "model": settings.OLLAMA_MODEL_NAME,
                 "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.0, # Giảm sáng tạo để lấy JSON chuẩn xác
-                "max_tokens": 1024
+                "temperature": 0.0,  # Tối thiểu sáng tạo — JSON phải chuẩn xác
+                "max_tokens": 1500   # Tăng lên để có đủ chỗ cho chain-of-thought
             }
 
             # Gửi HTTP Request bất đồng bộ
@@ -122,9 +125,10 @@ class LLMService:
                 response.raise_for_status()
                 data = response.json()
             
-            # Lấy kết quả từ Ollama
+            # Lấy kết quả từ Ollama và loại bỏ trường 'thinking' trước khi ép kiểu
             raw_text = data["choices"][0]["message"]["content"]
             parsed_data = self._safe_parse_json(raw_text)
+            parsed_data.pop("thinking", None)  # Loại bỏ chain-of-thought khỏi kết quả cuối
 
             # Ép kiểu định dạng và trả về Object Pydantic AnalysisResult chuẩn hóa
             return AnalysisResult(

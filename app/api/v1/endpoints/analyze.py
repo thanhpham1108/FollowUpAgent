@@ -18,6 +18,7 @@
 import uuid
 import asyncio
 import logging
+from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, status, Depends
 from app.schemas.request import CandidateAnalyzeRequest
 from app.schemas.response import CandidateAnalyzeResponse
@@ -26,7 +27,7 @@ from app.services.llm_service import llm_service
 from app.services.webhook_service import notify_crm_hr_webhook
 from app.services.rule_engine import rule_engine_service
 from app.core.database import SessionLocal
-from app.core.models import CallRecord, CallStatus, ContextType
+from app.core.models import CallRecord, CallStatus, ContextType, AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +72,36 @@ async def process_candidate_audio(task_id: str, request: CandidateAnalyzeRequest
         record.recommended_message = analysis_result.recommended_message
         record.intent = analysis_result.reason_code
         record.status = CallStatus.COMPLETED
+        # Wire các field còn thiếu từ kết quả LLM
+        if analysis_result.appointment_date:
+            record.updated_at = datetime.utcnow()
+        db.commit()
+
+        # Ghi AuditLog sau bước LLM
+        audit_llm = AuditLog(
+            call_record_id=task_id,
+            action="LLM_ANALYSIS",
+            decision=f"status_group={analysis_result.status_group}, reason_code={analysis_result.reason_code}",
+            details=analysis_result.model_dump_json()
+        )
+        db.add(audit_llm)
         db.commit()
 
         # 3.5 Chạy Rule Engine
         logger.info(f"[Task {task_id}] Gọi Rule Engine sinh lịch Follow-up...")
         rule_engine_service.evaluate_rules(call_record=record, analysis=analysis_result, db=db)
 
-        # 4. Gửi Webhook trả kết quả về CRM
+        # Ghi AuditLog sau bước Rule Engine
+        audit_rule = AuditLog(
+            call_record_id=task_id,
+            action="RULE_EVALUATION",
+            decision=f"Follow-up tasks scheduled for contact {request.ssn}",
+            details=f"{{\"status_group\": {analysis_result.status_group}, \"appointment_date\": \"{analysis_result.appointment_date}\"}}"
+        )
+        db.add(audit_rule)
+        db.commit()
+
+
         logger.info(f"[Task {task_id}] Hoàn thành phân tích. Gửi webhook về CRM...")
         webhook_payload = {
             "task_id": task_id,

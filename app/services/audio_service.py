@@ -26,7 +26,13 @@ def get_whisper_model():
     if _model is None:
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         logger.info(f"Loading PhoWhisper model: {settings.PHOWHISPER_MODEL} on {device}")
-        _model = pipeline("automatic-speech-recognition", model=settings.PHOWHISPER_MODEL, device=device)
+        _model = pipeline(
+            "automatic-speech-recognition",
+            model=settings.PHOWHISPER_MODEL,
+            device=device,
+            chunk_length_s=30,
+            return_timestamps=True
+        )
         logger.info("PhoWhisper model loaded.")
     return _model
 
