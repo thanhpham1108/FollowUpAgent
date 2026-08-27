@@ -24,10 +24,12 @@ register_exception_handlers(app)
 
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     logger.info(f"Khởi động FollowUpAgent API (env={settings.APP_ENV})...")
 
-    Base.metadata.create_all(bind=engine)
+    # Tạo bảng DB qua async engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     logger.info("Đã đảm bảo database tables tồn tại.")
 
     llm_service.load_model()
