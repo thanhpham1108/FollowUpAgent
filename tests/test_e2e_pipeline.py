@@ -47,19 +47,22 @@ async def test_e2e_pipeline_success():
         assert webhook_args["status"] == "completed"
         assert webhook_args["result"]["summary"] == mock_analysis_result.summary
 
-    # 2. Kiểm tra trạng thái dữ liệu đã lưu vào SQLite Database
-    db = SessionLocal()
-    record = db.query(CallRecord).filter(CallRecord.id == task_id).first()
-    assert record is not None
-    assert record.status == CallStatus.COMPLETED
-    assert record.transcript == mock_stt.return_value
-    assert record.summary == mock_analysis_result.summary
-    assert record.intent == mock_analysis_result.reason_code
-    
-    # Xóa record test
-    db.delete(record)
-    db.commit()
-    db.close()
+    from sqlalchemy.future import select
+
+    # 2. Kiểm tra trạng thái dữ liệu đã lưu vào PostgreSQL (hoặc test DB async)
+    async with SessionLocal() as db:
+        result = await db.execute(select(CallRecord).filter(CallRecord.id == task_id))
+        record = result.scalars().first()
+        
+        assert record is not None
+        assert record.status == CallStatus.COMPLETED
+        assert record.transcript == mock_stt.return_value
+        assert record.summary == mock_analysis_result.summary
+        assert record.intent == mock_analysis_result.reason_code
+        
+        # Xóa record test
+        await db.delete(record)
+        await db.commit()
     
     print("✅ E2E Pipeline test passed successfully!")
 
