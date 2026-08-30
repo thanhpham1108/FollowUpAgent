@@ -77,18 +77,40 @@ class LLMService:
         return True
 
     def _safe_parse_json(self, text: str) -> dict:
-        """Hàm bóc tách phần JSON thuần từ dữ liệu thô sinh ra bởi LLM"""
+        """
+        Hàm bóc tách phần JSON thuần từ dữ liệu thô sinh ra bởi LLM.
+        Xử lý được các trường hợp:
+        - JSON thuần
+        - JSON bọc trong ```json ... ```
+        - JSON lẫn lộn với 'thinking' block hoặc text thừa trước/sau
+        """
+        import re
         text = text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        text = text.strip()
+
+        # Bước 1: Loại bỏ markdown code block nếu có
+        if "```" in text:
+            # Lấy phần trong block ```json ... ``` hoặc ``` ... ```
+            match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+            if match:
+                text = match.group(1).strip()
+
+        # Bước 2: Thử parse thẳng (trường hợp đơn giản nhất)
         try:
             return json.loads(text)
-        except json.JSONDecodeError as e:
-            logger.warning(f"Bóc tách JSON thất bại: {e}. Đoạn text gốc: {text[:150]}")
-            return {}
+        except json.JSONDecodeError:
+            pass
+
+        # Bước 3: Dùng regex để bóc cục JSON đầu tiên trong đống text thừa
+        # (Xử lý trường hợp Qwen trả về 'thinking' block nằm trước JSON)
+        match = re.search(r"\{[\s\S]*\}", text)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError as e:
+                logger.warning(f"Bóc tách JSON bằng regex thất bại: {e}. Text gốc (150 ký tự đầu): {text[:150]}")
+
+        logger.error(f"Không thể bóc tách JSON từ response của LLM. Text gốc: {text[:300]}")
+        return {}
 
     async def analyze_audio(self, transcript: str, contact_name: str, context_type: str = "hr") -> AnalysisResult:
         """
