@@ -165,7 +165,14 @@ class LLMService:
             logger.error(f"Lỗi kết nối tới Ollama: {e}")
             raise LLMProcessingError(f"Không thể kết nối tới Ollama API: {e}")
         except Exception as e:
+            import traceback
             logger.error(f"Xử lý LLM thất bại cho đối tượng {contact_name}: {e}")
+            logger.error(f"Chi tiết lỗi:\n{traceback.format_exc()}")
+            # Log thêm raw_text nếu có thể (dùng biến cục bộ nếu đã được gán)
+            try:
+                logger.error(f"RAW TEXT từ LLM: {raw_text}")
+            except Exception:
+                pass
             raise LLMProcessingError(f"Quá trình phân tích dữ liệu hội thoại gặp sự cố cục bộ: {e}")
 
 

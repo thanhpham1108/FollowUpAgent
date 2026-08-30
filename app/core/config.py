@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"  # <-- Thêm theo yêu cầu comment
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/followup_agent"
+    DATABASE_URL: str = "postgresql+asyncpg://thanhpnc:password@localhost:5432/followup_agent"
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
