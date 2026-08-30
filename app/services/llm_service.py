@@ -138,8 +138,8 @@ class LLMService:
                 "max_tokens": 1500   # Tăng lên để có đủ chỗ cho chain-of-thought
             }
 
-            # Gửi HTTP Request bất đồng bộ
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            # Gửi HTTP Request bất đồng bộ (Tăng timeout lên 300s để phòng hờ Ollama load model lần đầu quá lâu)
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 response = await client.post(
                     f"{settings.OLLAMA_API_BASE_URL}/chat/completions",
                     json=payload
