@@ -11,6 +11,7 @@ class CallStatus(str, enum.Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    WEBHOOK_FAILED = "webhook_failed"  # Phân tích xong nhưng gửi Webhook thất bại sau 3 lần retry
 
 
 class FollowUpStatus(str, enum.Enum):

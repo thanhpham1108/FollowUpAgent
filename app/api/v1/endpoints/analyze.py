@@ -110,8 +110,16 @@ async def process_candidate_audio(task_id: str, request: CandidateAnalyzeRequest
                 "status": "completed",
                 "result": analysis_result.model_dump()
             }
-            await notify_crm_hr_webhook(webhook_payload)
-            logger.info(f"[Task {task_id}] Task kết thúc thành công.")
+            webhook_ok = await notify_crm_hr_webhook(webhook_payload)
+
+            if not webhook_ok:
+                # Phân tích thành công nhưng CRM không nhận được kết quả
+                record.status = CallStatus.WEBHOOK_FAILED
+                record.error_message = "Gửi Webhook thất bại sau 3 lần thử. Dữ liệu phân tích đã lưu trong DB."
+                await db.commit()
+                logger.warning(f"[Task {task_id}] Webhook thất bại. Trạng thái DB: WEBHOOK_FAILED.")
+            else:
+                logger.info(f"[Task {task_id}] Task kết thúc thành công.")
 
         except Exception as e:
             logger.error(f"[Task {task_id}] Xảy ra lỗi trong quá trình xử lý: {e}")
@@ -150,3 +158,4 @@ async def analyze_candidate_audio(
         status="processing",
         message="Audio received and is being processed in the background."
     )
+

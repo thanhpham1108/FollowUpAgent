@@ -22,6 +22,18 @@ class CandidateAnalyzeResponse(BaseModel):
     message: str = Field("Audio received and is being processed...", description="Thông báo hệ thống")
 
 
+class TaskStatusResponse(BaseModel):
+    """Phản hồi cho API tra cứu trạng thái task (Polling)"""
+    task_id: str = Field(..., description="Mã task xử lý")
+    status: str = Field(..., description="pending | processing | completed | failed | webhook_failed")
+    contact_name: Optional[str] = Field(None, description="Tên liên hệ / ứng viên")
+    summary: Optional[str] = Field(None, description="Tóm tắt cuộc gọi (chỉ có khi completed)")
+    intent: Optional[str] = Field(None, description="Mã phân loại ý định (reason_code)")
+    recommended_message: Optional[str] = Field(None, description="Tin nhắn gợi ý follow-up")
+    error_message: Optional[str] = Field(None, description="Thông báo lỗi (chỉ có khi failed)")
+    created_at: Optional[datetime] = Field(None, description="Thời điểm tạo task")
+
+
 # ─── 2. Cấu trúc kết quả phân tích từ LLM ───────────────────────────────────────
 class AnalysisResult(BaseModel):
     """Chi tiết kết quả xử lý từ mô hình AI (STT & LLM)"""
