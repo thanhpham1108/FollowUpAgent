@@ -214,9 +214,201 @@ env -u GIT_ASKPASS git pull origin main
 ## Danh sách cổng sử dụng (Tổng kết)
 
 | Cổng | Dịch vụ | Ghi chú |
-|------|---------|---------|
+|------|---------|---------| 
 | **18000** | FastAPI (Uvicorn) | API chính của hệ thống |
-| **11434** | Ollama | LLM inference (Qwen2.5 7B) |
+| **11434** | Ollama | LLM inference (Qwen2.5 7B + Llama3.1 Judge) |
 | **5433** | PostgreSQL | Database lưu kết quả |
 | **8001** | File Server (test) | Giả lập CRM phục vụ file audio |
 | **8002** | Adminer (tùy chọn) | Web UI để xem database |
+| **8089** | Locust Web UI | Load testing dashboard |
+
+---
+
+## PHẦN 10: Evaluation Pipeline — Đánh giá chất lượng LLM (Tab 1)
+
+Pipeline này dùng **Llama3.1 làm Giám khảo** để chấm điểm kết quả phân tích của **Qwen2.5 (Worker)**. Hai model khác nhau để tránh self-enhancement bias.
+
+### Bước 1: Cài Llama3.1 (Giám khảo)
+
+```bash
+# Đảm bảo Ollama đang chạy (PHẦN 3), rồi tải model Judge về
+./bin/ollama pull llama3.1
+```
+*(File ~4.9GB, chờ tải xong. Chỉ cần làm 1 lần.)*
+
+Kiểm tra 2 model đã sẵn sàng:
+```bash
+./bin/ollama list
+# Kết quả phải có đủ 2 dòng:
+# qwen2.5:7b-instruct   ...
+# llama3.1              ...
+```
+
+### Bước 2: Cấu hình biến môi trường cho Eval
+
+Mở file `.env` và đảm bảo 2 dòng sau tồn tại:
+```text
+# Judge Model — BẮT BUỘC khác với OLLAMA_MODEL_NAME
+JUDGE_OLLAMA_BASE_URL=http://localhost:11434/v1
+JUDGE_MODEL_NAME=llama3.1
+```
+
+> **Lưu ý máy RAM thấp (< 16GB):** Nếu không đủ RAM chạy 2 model cùng lúc, dùng model nhỏ hơn làm Judge:
+> ```text
+> JUDGE_MODEL_NAME=llama3.2
+> ```
+> Rồi tải: `./bin/ollama pull llama3.2`
+
+### Bước 3: Chạy Evaluation
+
+```bash
+conda activate datacore
+cd ~/datacore/FollowUpAgent
+
+python -m tests.eval.run_eval
+```
+
+**Output mẫu kỳ vọng:**
+```
+[Pre-check] Kiểm tra Judge Model (llama3.1)... OK ✅
+[Info] Bắt đầu eval 8 samples...
+
+================================================================================
+  FollowUpAgent — LLM-as-a-Judge Evaluation Report
+  Worker : qwen2.5:7b-instruct  |  Judge : llama3.1
+  Run at : 2026-09-19 14:30:00
+================================================================================
+
+  Đang xử lý [01/08] case_01_hung_up... done
+  [01] case_01_hung_up          Group: ✅ (2→2)  Code: ✅ (KNM_1→KNM_1)  Hallucination: 5/5  Logic: 5/5
+
+  ...
+
+================================================================================
+  TỔNG KẾT
+================================================================================
+  📊 Deterministic (Exact Match)
+     Status Group Accuracy : 7/8 (87.5%)
+     Reason Code Accuracy  : 6/8 (75.0%)
+
+  🤖 Judge Score (Llama3.1 chấm Qwen2.5)
+     Avg Hallucination Score : 4.75/5.00  🟢
+     Avg Logic Score         : 4.25/5.00  🟢
+================================================================================
+
+  📄 Full report saved: tests/eval/reports/eval_report_20260919_143000.json
+```
+
+### Bước 4: Đọc kết quả và Bootstrap Ground Truth
+
+Sau khi chạy lần đầu, report JSON được lưu tại `tests/eval/reports/`. Mở file đó ra:
+- Xem `critique` của từng sample (Judge giải thích lý do chấm điểm).
+- Những case Worker bị sai (`group_match: false`) → sửa lại Prompt trong `app/prompts/` để cải thiện.
+- Muốn thêm sample mới → append vào `tests/eval/dataset/samples.json`.
+
+---
+
+## PHẦN 11: Load Testing — Đánh giá chịu tải (Tab 2 & 3)
+
+Kiểm tra hệ thống có chịu được nhiều CRM request bắn vào cùng lúc không.
+
+### Bước 1: Cài thư viện Dev/Test (Chỉ làm 1 lần)
+
+```bash
+conda activate datacore
+pip install -r requirements-dev.txt
+```
+*(File này cài `locust`, `pytest`, `pytest-asyncio` — không nhét vào `requirements.txt` production)*
+
+### Bước 2: Đảm bảo API Server đang chạy
+
+Tab 1 phải đang chạy:
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 18000
+```
+
+### Bước 3A: Chạy Load Test có UI (Local / Có trình duyệt)
+
+```bash
+# Tab 2
+conda activate datacore
+cd ~/datacore/FollowUpAgent
+
+locust -f tests/load_test/locustfile.py --host http://localhost:18000
+```
+
+Mở trình duyệt → `http://<IP_SERVER>:8089`
+- **Number of users:** `20` (giả lập 20 CRM đồng thời)
+- **Spawn rate:** `2` (tăng dần 2 user/giây)
+- Bấm **Start swarming** và theo dõi biểu đồ.
+
+### Bước 3B: Chạy Load Test không UI — Headless (Server không có trình duyệt)
+
+```bash
+# Chạy 20 users, spawn 2/giây, kéo dài 60 giây, tự tắt
+locust -f tests/load_test/locustfile.py \
+  --host http://localhost:18000 \
+  --headless \
+  -u 20 -r 2 -t 60s
+```
+
+**Nếu server không ra được internet** (audio URL public không tải được):
+```bash
+# Copy 1 file wav vào thư mục data/ và bật file server (Tab 3)
+python -m http.server 8001 --directory ./data
+
+# Set biến môi trường để Locust dùng URL nội bộ
+export LOCUST_AUDIO_URL=http://localhost:8001/test_audio.wav
+
+# Rồi chạy lại Locust
+locust -f tests/load_test/locustfile.py --host http://localhost:18000 --headless -u 20 -r 2 -t 60s
+```
+
+### Bước 4: Đọc kết quả Load Test
+
+Chú ý 3 chỉ số quan trọng:
+
+| Chỉ số | Ngưỡng ổn | Ngưỡng cảnh báo |
+|--------|-----------|-----------------|
+| **Response Time (P95)** | < 500ms (cho 202 Accepted) | > 2000ms |
+| **Failure Rate** | < 1% | > 5% |
+| **Requests/sec** | Tùy server, baseline lần đầu | So sánh qua các lần chạy |
+
+> **Lưu ý quan trọng:** Load test chỉ đo tốc độ API trả về **202 Accepted** (nhận request).
+> Background task (STT + LLM) chạy ngầm — không đo được qua Locust.
+> Để theo dõi background queue: xem log Tab 1 hoặc query DB: `SELECT status, COUNT(*) FROM call_records GROUP BY status;`
+
+---
+
+## PHẦN 12: Các Lỗi Hay Gặp (Eval & Load Test)
+
+### ❌ `Judge Model chưa sẵn sàng` khi chạy run_eval.py
+**Nguyên nhân:** Chưa pull `llama3.1` về Ollama.
+```bash
+./bin/ollama pull llama3.1
+```
+
+### ❌ Eval báo lỗi `ModuleNotFoundError: No module named 'app'`
+**Nguyên nhân:** Chạy sai thư mục.
+```bash
+# PHẢI chạy từ thư mục gốc của project
+cd ~/datacore/FollowUpAgent
+python -m tests.eval.run_eval   # ← Dùng -m, không dùng python tests/eval/run_eval.py
+```
+
+### ❌ Locust báo `Connection refused` ngay khi start
+**Nguyên nhân:** API server chưa chạy hoặc chạy sai cổng.
+```bash
+# Kiểm tra server đang lắng nghe cổng nào
+ss -tlnp | grep python
+# Nếu server đang chạy cổng 18000 nhưng Locust chỉ định 8000:
+locust -f tests/load_test/locustfile.py --host http://localhost:18000
+```
+
+### ❌ Judge cho điểm toàn 5/5 — nghi ngờ không đáng tin
+**Nguyên nhân:** Model nhỏ quá (không đủ năng lực phán xét) hoặc Prompt quá dễ tính.
+**Fix:** Kiểm tra phần `critique` trong JSON report. Nếu critique chỉ là 1 câu chung chung → Model judge không đủ mạnh, thử dùng `llama3.1:70b` (cần server RAM lớn) hoặc đổi sang API cloud.
+```text
+# .env
+JUDGE_MODEL_NAME=llama3.1:70b
+```

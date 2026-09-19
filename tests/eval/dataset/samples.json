@@ -1,0 +1,58 @@
+[
+  {
+    "id": "case_01_hung_up",
+    "contact_name": "Nguyễn Văn Hùng",
+    "transcript": "A: Xin chào anh Hùng, em gọi từ công ty... B: Tôi đang bận. Gọi lại sau đi. [Cúp máy]",
+    "expected_status_group": 2,
+    "expected_reason_code": "KNM_1"
+  },
+  {
+    "id": "case_02_need_think",
+    "contact_name": "Trần Thị Lan",
+    "transcript": "A: Chị đã xem qua thông tin vị trí bên em chưa ạ? B: Có rồi, nghe cũng hay đó. Nhưng mà chị cần suy nghĩ thêm tí. A: Dạ vậy em gọi lại cho chị sau nhé. B: Ừ được.",
+    "expected_status_group": 2,
+    "expected_reason_code": "SUY_NGHI_THEM"
+  },
+  {
+    "id": "case_03_set_interview",
+    "contact_name": "Lê Minh Đức",
+    "transcript": "A: Anh Đức ơi, bên em có thể sắp xếp phỏng vấn cho anh vào thứ 3 tuần này được không? B: Thứ 3 à? Được, anh rảnh buổi sáng. A: Dạ vậy em đặt lịch 9 giờ sáng thứ 3 ngày 24 tháng 9 nhé anh. B: Okay.",
+    "expected_status_group": 4,
+    "expected_reason_code": "HEN_PHONG_VAN"
+  },
+  {
+    "id": "case_04_no_cccd",
+    "contact_name": "Phạm Thị Hoa",
+    "transcript": "A: Chị ơi, chị có thể cung cấp CCCD để bên em hoàn tất hồ sơ không ạ? B: Ủa CCCD chị đang chờ làm lại, mấy tuần nữa mới có. A: Dạ vậy khi nào chị có thì báo em nhé. B: Ừ được.",
+    "expected_status_group": 3,
+    "expected_reason_code": "CHO_CCCD"
+  },
+  {
+    "id": "case_05_start_work",
+    "contact_name": "Võ Thành Long",
+    "transcript": "A: Anh Long ơi, anh đã chuẩn bị sẵn sàng để bắt đầu đi làm chưa ạ? B: Rồi, anh đi được rồi. A: Dạ vậy anh bắt đầu từ thứ Hai tuần tới nhé. B: Ok, anh biết rồi.",
+    "expected_status_group": 5,
+    "expected_reason_code": "DI_LAM"
+  },
+  {
+    "id": "case_06_refuse_call",
+    "contact_name": "Nguyễn Thị Bích",
+    "transcript": "A: Xin chào chị Bích, em tư vấn về cơ hội việc làm... B: Thôi đừng gọi nữa. Tôi không quan tâm đâu. [Cúp máy]",
+    "expected_status_group": 2,
+    "expected_reason_code": "KNM_4"
+  },
+  {
+    "id": "case_07_no_advice_yet",
+    "contact_name": "Trần Văn Nam",
+    "transcript": "A: Xin chào anh Nam ạ. B: Ừ ai đó? A: Em từ công ty tuyển dụng XYZ ạ. B: À ừ, nhưng mà anh đang ở ngoài, anh không nghe rõ. Thôi cúp đây.",
+    "expected_status_group": 1,
+    "expected_reason_code": "CHUA_TU_VAN"
+  },
+  {
+    "id": "case_08_far_appointment",
+    "contact_name": "Lê Thị Thu",
+    "transcript": "A: Chị Thu ơi, chị có thể phỏng vấn tuần này không? B: Tuần này không được đâu em, chị bận lắm. Tháng sau được không? A: Dạ được ạ, em sẽ sắp xếp lại. B: Ừ gọi lại cho chị tháng sau đi.",
+    "expected_status_group": 3,
+    "expected_reason_code": "HEN_XA"
+  }
+]
