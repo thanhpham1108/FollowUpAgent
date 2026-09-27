@@ -21,18 +21,48 @@ logger = logging.getLogger(__name__)
 _model = None
 
 
+def determine_device() -> str:
+    pref = getattr(settings, "WHISPER_DEVICE", "auto").lower()
+    if pref in ("cpu", "cuda:0", "cuda"):
+        return "cuda:0" if "cuda" in pref else "cpu"
+
+    if torch.cuda.is_available():
+        try:
+            # Kiểm tra xem GPU có kernel tương thích với build PyTorch hiện tại không (ví dụ P100 sm_60)
+            test_tensor = torch.zeros(1, device="cuda:0")
+            _ = test_tensor + 1
+            return "cuda:0"
+        except Exception as e:
+            logger.warning(f"GPU không tương thích với bản build PyTorch ({e}). Tự động fallback sang CPU cho PhoWhisper.")
+            return "cpu"
+    return "cpu"
+
+
 def get_whisper_model():
     global _model
     if _model is None:
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        device = determine_device()
         logger.info(f"Loading PhoWhisper model: {settings.PHOWHISPER_MODEL} on {device}")
-        _model = pipeline(
-            "automatic-speech-recognition",
-            model=settings.PHOWHISPER_MODEL,
-            device=device,
-            chunk_length_s=30,
-            return_timestamps=True
-        )
+        try:
+            _model = pipeline(
+                "automatic-speech-recognition",
+                model=settings.PHOWHISPER_MODEL,
+                device=device,
+                chunk_length_s=30,
+                return_timestamps=True
+            )
+        except Exception as e:
+            if device != "cpu":
+                logger.warning(f"Nạp model trên {device} thất bại ({e}). Thử lại trên CPU...")
+                _model = pipeline(
+                    "automatic-speech-recognition",
+                    model=settings.PHOWHISPER_MODEL,
+                    device="cpu",
+                    chunk_length_s=30,
+                    return_timestamps=True
+                )
+            else:
+                raise
         logger.info("PhoWhisper model loaded.")
     return _model
 
