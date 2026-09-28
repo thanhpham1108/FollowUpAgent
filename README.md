@@ -1,141 +1,142 @@
-# FollowUpAgent
+﻿# 🎧 FollowUpAgent - End-to-End AI Call Analysis Pipeline
 
-**FollowUpAgent** là hệ thống AI nội bộ tự động phân tích file ghi âm phỏng vấn của ứng viên. Dựa trên nội dung cuộc gọi, hệ thống sử dụng AI (Speech-to-Text và Large Language Model) để tạo tóm tắt và đề xuất thông điệp follow-up (phản hồi) cho bộ phận Nhân sự (HR).
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-00a393)
+![PyTorch](https://img.shields.io/badge/PyTorch-CUDA_11.8-ee4c2c)
+![Ollama](https://img.shields.io/badge/Ollama-Qwen_2.5-black)
 
----
+FollowUpAgent is an enterprise-ready, fully automated AI pipeline designed to analyze customer and candidate phone calls. It securely downloads audio from internal PBX/CRMs, transcribes speech to text using **PhoWhisper** (GPU-accelerated), analyzes the conversation nuances using **Local LLMs (Ollama/Qwen)**, and triggers a Rule Engine to schedule follow-up actions—all running in the background.
 
-## 1. Yêu cầu hệ thống (Prerequisites)
+## 🌟 Key Features
 
-Để hệ thống hoạt động với hiệu suất tốt nhất, server triển khai cần đáp ứng các yêu cầu sau:
-
-- **Hệ điều hành:** Linux (Khuyến nghị Ubuntu 22.04 LTS).
-- **Phần cứng:** Yêu cầu có GPU NVIDIA để tăng tốc quá trình xử lý AI (PhoWhisper & LLM).
-- **Phần mềm cài đặt sẵn:**
-  - [Docker](https://docs.docker.com/engine/install/) & [Docker Compose](https://docs.docker.com/compose/install/).
-  - [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) (để Docker có thể nhận diện GPU).
-  - Máy chủ đã cài đặt hoặc có kết nối đến hệ thống **Ollama** (với model `qwen2.5:7b-instruct` hoặc tương đương).
-
----
-
-## 2. Hướng dẫn cài đặt & Triển khai (Setup & Deployment)
-
-Hệ thống được đóng gói hoàn toàn bằng Docker, giúp quá trình triển khai trở nên dễ dàng và đồng nhất.
-
-### Bước 1: Chuẩn bị mã nguồn
-Clone hoặc giải nén mã nguồn vào thư mục trên server:
-```bash
-git clone <repository_url>
-cd FollowUpAgent
-```
-
-### Bước 2: Cấu hình môi trường
-Tạo file `.env` từ file mẫu `.env.example`:
-```bash
-cp .env.example .env
-```
-Mở file `.env` và chỉnh sửa lại các thông số quan trọng:
-- `DATABASE_URL`: Cấu hình chuỗi kết nối database (nếu không dùng db mặc định của docker-compose).
-- `OLLAMA_API_BASE_URL` & `OLLAMA_MODEL_NAME`: URL trỏ tới server Ollama.
-- `WEBHOOK_URL`, `CRM_WEBHOOK_URL`: Địa chỉ Webhook của hệ thống CRM để nhận kết quả phân tích.
-
-### Bước 3: Khởi chạy dịch vụ
-Hệ thống đi kèm cấu hình tự động triển khai CSDL PostgreSQL và API Service:
-```bash
-docker-compose up -d --build
-```
-
-Kiểm tra trạng thái các container:
-```bash
-docker-compose logs -f
-```
-
-Hệ thống sẽ khả dụng tại: `http://localhost:8000`. Bạn có thể truy cập `http://localhost:8000/docs` (Swagger UI) để xem và test thử các API.
+- **🚀 Async & Non-Blocking**: Built on FastAPI. Returns 202 Accepted instantly to the CRM while processing heavy ML workloads in the background.
+- **🧠 Local AI Processing**: 100% data privacy. Both Speech-to-Text and LLM logic run entirely locally without relying on external cloud APIs.
+- **🚥 Smart Concurrency Control**: Implements syncio.Semaphore and Thread Locks to prevent RAM/CPU thrashing when hit with concurrent requests.
+- **🛡️ Auto GPU-Fallback**: Automatically detects CUDA compatibility (sm_60 / Tesla P100 supported). Falls back to CPU gracefully if GPU drivers fail.
+- **🧱 Strict JSON LLM Output**: Forces Ollama to output valid, parseable JSON data using native API format flags and few-shot prompting techniques.
+- **⚙️ Production Deployment**: Includes Linux systemd service configurations for instant server deployment and high availability.
 
 ---
 
-## 3. Cấu trúc thư mục (Folder Structure)
+## 🏗️ System Architecture
 
-```text
-FollowUpAgent/
-├── app/               # Source code chính của ứng dụng FastAPI
-├── data/              # Thư mục chứa file audio tải về (mount vào Docker)
-├── tests/             # Unit tests, Eval pipeline và Load testing scripts
-├── Reports/           # Báo cáo hàng tuần, specs hạ tầng và kế hoạch
-├── scripts/           # Các script hỗ trợ tự động hóa
-├── Dockerfile         # Đóng gói FollowUpAgent API & AI Pipeline
-├── docker-compose.yml # Quản lý các dịch vụ (PostgreSQL, Agent Service)
-├── .env.example       # File biến môi trường mẫu
-└── FollowUpAgent_API_contract.json # Collection Postman tài liệu API
-```
+`mermaid
+flowchart LR
+    %% External
+    CRM[(🏢 Company CRM)]
+    
+    %% API
+    subgraph Gateway ["🌐 API & Concurrency"]
+        direction TB
+        API(⚡ FastAPI Server)
+        Queue{🚥 Semaphore Lock}
+        API --- Queue
+    end
 
----
+    %% AI Pipeline
+    subgraph AI_Pipeline ["🧠 AI Processing Pipeline"]
+        direction LR
+        STT(🎙️ PhoWhisper GPU)
+        LLM(🤖 Ollama Qwen2.5)
+        Rules(⚙️ Rule Engine)
+        STT --> LLM --> Rules
+    end
 
-## 4. Kiến trúc hệ thống (Architecture)
+    %% Webhook
+    Webhook((🚀 Webhook Service))
 
-```text
-┌─────────────────────────────────────────────────┐
-│                  INTERNAL NETWORK               │
-│                                                 │
-│  ┌──────────┐   POST /api/v1/candidates/analyze │
-│  │          │ ─────────────────────────────────►│
-│  │   CRM    │                                   │
-│  │  System  │ ◄─────────────────────────────────│
-│  │          │   POST /webhook/candidate-recommend│
-│  └──────────┘                                   │
-│                         ▲ Trả kết quả Webhook   │
-│                         │                       │
-│  ┌──────────────────────┴──────────────────────┐│
-│  │          FollowUpAgent AI Service           ││
-│  │                                             ││
-│  │   FastAPI  ──►  Whisper  ──►  Local LLM     ││
-│  │  (Receive)    (STT audio)  (Analyze & Draft)││
-│  └─────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────┘
-```
+    %% Flow
+    CRM -->|"1. POST Audio URL"| API
+    API -.->|"2. HTTP 202"| CRM
+    
+    Queue ==>|"3. Background Stream"| STT
+    Rules ==>|"4. Analysis JSON"| Webhook
+    Webhook ==>|"5. Push Result"| CRM
 
-**Luồng xử lý:**
-1. CRM gửi ID ứng viên (SSN) và URL chứa file ghi âm nội bộ sang hệ thống AI.
-2. AI tải audio, bóc băng giọng nói thành văn bản (dùng PhoWhisper).
-3. LLM phân tích văn bản, tóm tắt và dự thảo câu trả lời follow-up.
-4. Hệ thống đẩy kết quả trả lại CRM thông qua cơ chế Webhook.
+    %% Colors
+    classDef external fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#fff
+    classDef api fill:#27ae60,stroke:#2ecc71,stroke-width:2px,color:#fff
+    classDef ai fill:#8e44ad,stroke:#9b59b6,stroke-width:2px,color:#fff
+    classDef hook fill:#d35400,stroke:#e67e22,stroke-width:2px,color:#fff
 
----
-
-## 5. Tích hợp API (API Contract Summary)
-
-Tài liệu API chi tiết được cung cấp dưới dạng Postman Collection.
-Vui lòng import file: `FollowUpAgent_API_contract.json` vào Postman để thử nghiệm toàn bộ luồng.
-
-### 5.1 Gửi yêu cầu phân tích Audio
-- **Endpoint:** `POST /api/v1/candidates/analyze`
-- **Body:**
-```json
-{
-  "ssn": "079099123456",
-  "candidate_name": "Nguyen Van A",
-  "audio_url": "http://{crm_server_ip}/files/079099123456_interview.mp3"
-}
-```
-*(Hệ thống sẽ trả về mã 202 Accepted và tiến hành xử lý ngầm)*
-
-### 5.2 Nhận kết quả từ Webhook
-Khi xử lý xong, hệ thống AI sẽ tự động POST kết quả tới webhook của CRM:
-```json
-{
-  "task_id": "TASK-a1b2c3d4",
-  "ssn": "079099123456",
-  "status": "completed",
-  "result": {
-    "summary": "Ứng viên giao tiếp tốt, kỹ năng kỹ thuật vững...",
-    "recommended_message": "Chào anh Nguyễn Văn A, cảm ơn anh đã tham gia phỏng vấn..."
-  }
-}
-```
+    class CRM external
+    class API,Queue api
+    class STT,LLM,Rules ai
+    class Webhook hook
+`
 
 ---
 
-## 6. Bảo trì & Xử lý sự cố (Troubleshooting)
+## 🛠️ Prerequisites
 
-- **Lỗi không nhận diện được GPU (Nvidia driver error):** Hãy đảm bảo máy chủ đã cài đặt `nvidia-container-toolkit` và đã khởi động lại Docker daemon (`sudo systemctl restart docker`).
-- **Lỗi không kết nối được Database:** Kiểm tra lại thông số `DATABASE_URL` trong `.env` và đảm bảo cổng `5432` hoặc `5433` không bị trùng lặp trên host.
-- **Xem file log của hệ thống AI:** Chạy lệnh `docker logs followup-agent-gpu --tail 100 -f`.
+- **OS:** Linux (Ubuntu/CentOS) recommended for production.
+- **Hardware:** NVIDIA GPU (Tesla P100 / T4 / RTX series) highly recommended.
+- **Software:** 
+  - Conda / Python 3.10+
+  - PostgreSQL
+  - Ollama (running on port 11434 with model qwen2.5:7b-instruct)
+
+---
+
+## 🚀 Installation & Setup
+
+**1. Clone the repository and set up the environment:**
+`ash
+conda create -n datacore python=3.10 -y
+conda activate datacore
+`
+
+**2. Install PyTorch with CUDA (Example for CUDA 11.8):**
+`ash
+pip install torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
+`
+
+**3. Install project dependencies:**
+`ash
+pip install -r requirements.txt
+`
+
+**4. Configure Environment Variables:**
+Copy .env.example to .env and configure your database and CRM webhook endpoints. Do NOT hardcode WHISPER_DEVICE=cpu if you intend to use a GPU.
+
+**5. Start the Server (Development):**
+`ash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 18000
+`
+
+---
+
+## 📦 Production Deployment (Systemd)
+
+To deploy the application as a permanent background service on a Linux server:
+
+`ash
+cd deploy
+chmod +x setup_service.sh
+./setup_service.sh
+`
+
+You can monitor the service health using:
+`ash
+sudo systemctl status followup-agent.service
+sudo journalctl -u followup-agent.service -f
+`
+
+---
+
+## 🧪 Included Utilities
+
+### Load Tester (scripts/load_test.py)
+Stress-test the concurrency queue and monitor processing times.
+`ash
+python scripts/load_test.py --url http://localhost:18000 --audio-url http://localhost:8001/test.wav --count 10 --poll
+`
+
+### Audio Scraper (scripts/extract_audio_urls.py)
+Utility to scrape real production audio links from internal CRM APIs for testing.
+`ash
+python scripts/extract_audio_urls.py --limit 50 --output urls.txt
+`
+
+---
+*Built with ❤️ for High-Performance Voice AI Integrations.*
