@@ -1,0 +1,29 @@
+﻿[Unit]
+Description=FollowUpAgent FastAPI Service
+After=network.target postgresql.service
+
+[Service]
+# Chạy dưới quyền user đang quản lý server
+User=thanhpnc
+Group=thanhpnc
+
+# Thư mục gốc của project
+WorkingDirectory=/home/thanhpnc/datacore/FollowUpAgent
+
+# Đảm bảo sử dụng đúng môi trường Conda 'datacore'
+Environment="PATH=/home/thanhpnc/.conda/envs/datacore/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Lệnh khởi động server
+ExecStart=/home/thanhpnc/.conda/envs/datacore/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 18000
+
+# Tự động khởi động lại nếu bị crash
+Restart=always
+RestartSec=3
+
+# Ghi log ra syslog tiêu chuẩn
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=followup-agent
+
+[Install]
+WantedBy=multi-user.target
