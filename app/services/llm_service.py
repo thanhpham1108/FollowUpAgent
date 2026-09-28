@@ -128,13 +128,14 @@ class LLMService:
             logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name} qua Ollama...")
             
             # Tạo payload chuẩn OpenAI API compatible cho Ollama — dùng system prompt V2
-            payload = {
+                        payload = {
                 "model": settings.OLLAMA_MODEL_NAME,
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.0,  # Tối thiểu sáng tạo — JSON phải chuẩn xác
+                "format": "json",    # Ép Ollama phải trả về chuẩn JSON
+                "temperature": 0.0,  # Tối thiểu sáng tạo -> JSON phải chuẩn xác
                 "max_tokens": 1500   # Tăng lên để có đủ chỗ cho chain-of-thought
             }
 
