@@ -22,19 +22,13 @@ _model = None
 
 
 def determine_device() -> str:
-    pref = getattr(settings, "WHISPER_DEVICE", "auto").lower()
-    if pref in ("cpu", "cuda:0", "cuda"):
-        return "cuda:0" if "cuda" in pref else "cpu"
-
     if torch.cuda.is_available():
         try:
-            # Kiểm tra xem GPU có kernel tương thích với build PyTorch hiện tại không (ví dụ P100 sm_60)
             test_tensor = torch.zeros(1, device="cuda:0")
             _ = test_tensor + 1
             return "cuda:0"
         except Exception as e:
-            logger.warning(f"GPU không tương thích với bản build PyTorch ({e}). Tự động fallback sang CPU cho PhoWhisper.")
-            return "cpu"
+            logger.warning(f"GPU found but incompatible ({e}). Falling back to CPU.")
     return "cpu"
 
 
