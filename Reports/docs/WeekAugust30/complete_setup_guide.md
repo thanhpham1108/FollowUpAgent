@@ -44,6 +44,9 @@ pg_ctl -D ~/pgdata -l ~/pgdata/logfile start
 # Tạo Database và User (Thay cổng 5432 hoặc 5433 tùy máy)
 createdb -h localhost followup_agent -p 5433
 psql -h localhost -p 5433 -d followup_agent -c "CREATE USER thanhpnc WITH PASSWORD 'password';"
+
+# Cach xem co database gi 
+psql -h localhost -p 5433 -U thanhpnc -l
 ```
 
 ---
