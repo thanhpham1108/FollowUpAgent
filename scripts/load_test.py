@@ -20,17 +20,12 @@ import httpx
 async def send_request(
     client: httpx.AsyncClient,
     api_url: str,
-    audio_url: str,
+    payload: dict,
     index: int,
 ) -> dict:
     """Gửi 1 request phân tích audio và trả về kết quả."""
-    payload = {
-        "ssn": f"LOADTEST-{index:03d}",
-        "candidate_name": f"LoadTest User {index}",
-        "audio_url": audio_url,
-    }
-
     start = time.perf_counter()
+    ssn = payload.get("ssn", f"LOADTEST-{index:03d}")
     try:
         response = await client.post(
             f"{api_url}/api/v1/candidates/analyze",
@@ -40,18 +35,20 @@ async def send_request(
         data = response.json()
 
         status_icon = "✅" if response.status_code == 202 else "❌"
-        print(f"  {status_icon} Request #{index:03d} | HTTP {response.status_code} | {elapsed:.2f}s | task_id={data.get('task_id', 'N/A')}")
+        task_id = data.get("task_id", "N/A")
+        print(f"  {status_icon} #{index:03d} [{ssn}] | HTTP {response.status_code} | {elapsed:.2f}s | task_id={task_id}")
 
         return {
             "index": index,
+            "ssn": ssn,
             "status_code": response.status_code,
             "task_id": data.get("task_id"),
             "elapsed": elapsed,
         }
     except Exception as e:
         elapsed = time.perf_counter() - start
-        print(f"  ❌ Request #{index:03d} | ERROR | {elapsed:.2f}s | {e}")
-        return {"index": index, "status_code": 0, "task_id": None, "elapsed": elapsed, "error": str(e)}
+        print(f"  ❌ #{index:03d} [{ssn}] | ERROR | {elapsed:.2f}s | {e}")
+        return {"index": index, "ssn": ssn, "status_code": 0, "task_id": None, "elapsed": elapsed, "error": str(e)}
 
 
 async def poll_task_status(
@@ -82,28 +79,50 @@ async def main():
     parser.add_argument("--url", default="http://localhost:18000", help="Base URL của API server")
     parser.add_argument("--audio-url", default=None, help="URL file audio dùng chung cho mọi request")
     parser.add_argument("--audio-urls", default=None, help="Đường dẫn tới file text chứa danh sách URL audio (mỗi dòng 1 URL)")
+    parser.add_argument("--requests-file", default=None, help="Đường dẫn tới file JSON chứa danh sách request đầy đủ (deal_id, ssn, candidate_name, audio_url)")
     parser.add_argument("--count", type=int, default=5, help="Số request gửi đồng thời (mặc định: 5)")
     parser.add_argument("--poll", action="store_true", help="Bật chế độ polling: chờ đến khi tất cả task hoàn thành")
     parser.add_argument("--poll-interval", type=float, default=5.0, help="Khoảng cách giữa các lần polling (giây)")
     args = parser.parse_args()
 
-    # Xây dựng danh sách audio URLs
-    audio_urls = []
-    if args.audio_urls:
-        with open(args.audio_urls, "r") as f:
+    # Xây dựng danh sách payload
+    payloads = []
+    if args.requests_file:
+        import json
+        with open(args.requests_file, "r", encoding="utf-8") as f:
+            req_data = json.load(f)
+            for item in req_data:
+                payloads.append({
+                    "ssn": item.get("ssn"),
+                    "candidate_name": item.get("candidate_name"),
+                    "audio_url": item.get("audio_url"),
+                })
+    elif args.audio_urls:
+        with open(args.audio_urls, "r", encoding="utf-8") as f:
             audio_urls = [line.strip() for line in f if line.strip()]
+        for i, url in enumerate(audio_urls, 1):
+            payloads.append({
+                "ssn": f"LOADTEST-{i:03d}",
+                "candidate_name": f"LoadTest User {i}",
+                "audio_url": url,
+            })
     elif args.audio_url:
-        audio_urls = [args.audio_url]
+        payloads.append({
+            "ssn": "LOADTEST-001",
+            "candidate_name": "LoadTest User 1",
+            "audio_url": args.audio_url,
+        })
     else:
-        print("❌ Bạn phải cung cấp --audio-url hoặc --audio-urls")
+        print("❌ Bạn phải cung cấp --requests-file, --audio-urls hoặc --audio-url")
         return
 
-    count = args.count
+    count = min(args.count, len(payloads)) if args.requests_file else args.count
 
     print("=" * 70)
     print(f"  🚀 FOLLOWUPAGENT LOAD TEST")
     print(f"  Server:      {args.url}")
-    print(f"  Audio URLs:  {len(audio_urls)} file(s)")
+    print(f"  Nguồn data:  {args.requests_file or args.audio_urls or args.audio_url}")
+    print(f"  Dataset:     {len(payloads)} request mẫu có sẵn")
     print(f"  Concurrency: {count} request(s) đồng thời")
     print(f"  Polling:     {'Bật' if args.poll else 'Tắt'}")
     print("=" * 70)
@@ -116,9 +135,8 @@ async def main():
     async with httpx.AsyncClient(timeout=30.0) as client:
         tasks = []
         for i in range(count):
-            # Round-robin audio URLs nếu có nhiều file
-            audio_url = audio_urls[i % len(audio_urls)]
-            tasks.append(send_request(client, args.url, audio_url, i + 1))
+            p = payloads[i % len(payloads)]
+            tasks.append(send_request(client, args.url, p, i + 1))
 
         results = await asyncio.gather(*tasks)
 

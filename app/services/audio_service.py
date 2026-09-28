@@ -38,32 +38,40 @@ def determine_device() -> str:
     return "cpu"
 
 
+import threading
+
+_model = None
+_model_lock = threading.Lock()
+
+
 def get_whisper_model():
     global _model
     if _model is None:
-        device = determine_device()
-        logger.info(f"Loading PhoWhisper model: {settings.PHOWHISPER_MODEL} on {device}")
-        try:
-            _model = pipeline(
-                "automatic-speech-recognition",
-                model=settings.PHOWHISPER_MODEL,
-                device=device,
-                chunk_length_s=30,
-                return_timestamps=True
-            )
-        except Exception as e:
-            if device != "cpu":
-                logger.warning(f"Nạp model trên {device} thất bại ({e}). Thử lại trên CPU...")
-                _model = pipeline(
-                    "automatic-speech-recognition",
-                    model=settings.PHOWHISPER_MODEL,
-                    device="cpu",
-                    chunk_length_s=30,
-                    return_timestamps=True
-                )
-            else:
-                raise
-        logger.info("PhoWhisper model loaded.")
+        with _model_lock:
+            if _model is None:
+                device = determine_device()
+                logger.info(f"Loading PhoWhisper model: {settings.PHOWHISPER_MODEL} on {device}")
+                try:
+                    _model = pipeline(
+                        "automatic-speech-recognition",
+                        model=settings.PHOWHISPER_MODEL,
+                        device=device,
+                        chunk_length_s=30,
+                        return_timestamps=True
+                    )
+                except Exception as e:
+                    if device != "cpu":
+                        logger.warning(f"Nạp model trên {device} thất bại ({e}). Thử lại trên CPU...")
+                        _model = pipeline(
+                            "automatic-speech-recognition",
+                            model=settings.PHOWHISPER_MODEL,
+                            device="cpu",
+                            chunk_length_s=30,
+                            return_timestamps=True
+                        )
+                    else:
+                        raise
+                logger.info("PhoWhisper model loaded.")
     return _model
 
 
@@ -149,18 +157,25 @@ def transcribe_audio(file_path: Path) -> dict:
     }
 
 
+# Semaphore giới hạn số lượng tác vụ STT chạy đồng thời
+# Đối với STT nặng, chạy 1-2 tác vụ tuần tự sẽ tránh được tranh chấp CPU/VRAM và hiện tượng thrashing bộ nhớ
+_stt_semaphore = asyncio.Semaphore(1)
+
+
 async def speech_to_text(audio_url: str, task_id: str) -> str:
     """
     Full pipeline: download audio → transcribe (non-blocking) → cleanup.
     Dùng asyncio.to_thread để chạy STT trong thread riêng, giải phóng event loop của FastAPI.
+    Dùng _stt_semaphore để xếp hàng xử lý STT, đảm bảo hiệu năng và tránh nghẽn tài nguyên.
     """
     file_path: Path = None
     try:
         file_path = await download_audio(audio_url, task_id)
-        # ❗ Quan trọng: transcribe_audio là hàm đồng bộ (blocking).
-        # Bọ vào to_thread để server không bị đứng hình khi AI đang xử lý
-        result = await asyncio.to_thread(transcribe_audio, file_path)
-        return result["text"]
+        logger.info(f"[Task {task_id}] Đang chờ tới lượt xử lý STT trong hàng đợi...")
+        async with _stt_semaphore:
+            logger.info(f"[Task {task_id}] Bắt đầu bóc băng STT...")
+            result = await asyncio.to_thread(transcribe_audio, file_path)
+            return result["text"]
     except Exception as e:
         logger.error(f"STT pipeline thất bại cho task {task_id} (URL: {audio_url}): {e}")
         raise
