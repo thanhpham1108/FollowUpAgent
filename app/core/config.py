@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # AI Models
     OLLAMA_API_BASE_URL: str = "http://localhost:11434/v1"
     OLLAMA_MODEL_NAME: str = "qwen2.5:7b-instruct"
-    PHOWHISPER_MODEL: str = "vinai/PhoWhisper-medium"
+    PHOWHISPER_MODEL: str = "vinai/PhoWhisper-large"
     WHISPER_DEVICE: str = "auto"  # "auto", "cpu", hoặc "cuda:0"
 
     # Zalo
