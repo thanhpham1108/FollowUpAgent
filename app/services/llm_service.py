@@ -128,7 +128,7 @@ class LLMService:
             logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name} qua Ollama...")
             
             # Tạo payload chuẩn OpenAI API compatible cho Ollama — dùng system prompt V2
-                        payload = {
+            payload = {
                 "model": settings.OLLAMA_MODEL_NAME,
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
