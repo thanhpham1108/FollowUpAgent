@@ -28,10 +28,13 @@ class RuleEngineService:
             action_desc = "Gán Rule Nhóm 1: Nhắc HR gọi điện trong 10 phút"
 
         elif status_group == 2:
-            # Nhóm 2: Cần gọi lại
-            if reason_code in ["KNM_1", "KNM_2", "KNM_3"]:
-                scheduled_at = now + timedelta(days=1)
-                action_desc = f"Gán Rule Nhóm 2 (Lý do: {reason_code}): Nhắc HR gọi lại sau 1 ngày"
+            # Nhóm 2: Không thành công / Cần gọi lại
+            if reason_code == "TU_CHOI_LUON":
+                scheduled_at = None
+                action_desc = f"Gán Rule Nhóm 2 (Lý do: {reason_code}): Khách từ chối, HỦY LỊCH GỌI LẠI"
+            elif reason_code in ["KNM_DAP_MAY", "KHACH_BAN"]:
+                scheduled_at = now + timedelta(hours=2)
+                action_desc = f"Gán Rule Nhóm 2 (Lý do: {reason_code}): Nhắc HR gọi lại sau 2 giờ"
             else:
                 scheduled_at = now + timedelta(days=3)
                 action_desc = f"Gán Rule Nhóm 2 (Lý do: {reason_code}): Nhắc HR gọi lại sau 3 ngày"
