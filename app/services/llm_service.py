@@ -146,16 +146,11 @@ class LLMService:
 
             # Ép kiểu định dạng và trả về Object Pydantic AnalysisResult chuẩn hóa
             return AnalysisResult(
-                summary=parsed_data.get("summary") or "",
+                summary=parsed_data.get("summary") or "Không có tóm tắt.",
                 status_group=int(parsed_data.get("status_group") or 1),
                 reason_code=str(parsed_data.get("reason_code") or "UNKNOWN"),
                 appointment_date=parsed_data.get("appointment_date"),
                 recommended_message=parsed_data.get("recommended_message") or ""
-            ),
-                status_group=int(parsed_data.get("status_group", 1)),
-                reason_code=str(parsed_data.get("reason_code", "UNKNOWN")),
-                appointment_date=parsed_data.get("appointment_date"),
-                recommended_message=parsed_data.get("recommended_message", "Không thể tạo tin nhắn gợi ý.")
             )
 
         except httpx.RequestError as e:
