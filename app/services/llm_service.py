@@ -16,36 +16,27 @@ try:
     from app.prompts.system_prompts import SYSTEM_PROMPT
 except ImportError:
     SYSTEM_PROMPT = "Bạn là chuyên viên phân tích cuộc gọi. Chỉ trả về JSON thuần."
-    # Fallback lại các Prompt Template gốc của bạn nếu chưa kịp tách file
-    SALES_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi bán hàng/tư vấn. Hãy phân tích cuộc hội thoại sau và phân loại khách hàng vào 1 trong 5 nhóm.
-Nhóm 1: Chưa tư vấn
-Nhóm 2: Cần gọi lại (Lý do: KNM_1, KNM_4, SUY_NGHI_THEM, KHACH_BAN)
-Nhóm 3: UV Tiềm năng (Lý do: CHUA_CHOT_NGAY, CHO_CCCD, HEN_XA)
-Nhóm 4: Hẹn phỏng vấn (Lý do: HEN_PHONG_VAN)
-Nhóm 5: Đi làm tạm tính (Lý do: DI_LAM)
-
+    # Fallback cho Sales
+    SALES_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi bán hàng. Hãy phân loại vào 1 trong 5 nhóm:
+Nhóm 1: Không có nội dung / Lỗi kết nối (LOI_AM_THANH, CUOC_GOI_RONG, SAI_SO_NHAM_SO)
+Nhóm 2: Không thành công / Cần gọi lại (KNM_DAP_MAY, KHACH_BAN, TU_CHOI_LUON, SUY_NGHI_THEM)
+Nhóm 3: Tiềm năng (CHUA_CHOT_NGAY, CHO_GIAY_TO, HEN_XA)
+Nhóm 4: Đã hẹn lịch (HEN_PHONG_VAN)
+Nhóm 5: Chốt thành công (DI_LAM)
 Tên khách hàng: {contact_name}
-Nội dung hội thoại:
-\"\"\"
-{context_data}
-\"\"\"
-Trả về JSON đúng cấu trúc:
-{{"summary": "Tóm tắt cuộc gọi", "status_group": 1, "reason_code": "Mã lý do", "appointment_date": null, "recommended_message": "Tin nhắn gợi ý"}}"""
+Nội dung: {context_data}
+Trả về JSON đúng cấu trúc có summary, status_group, reason_code, appointment_date, recommended_message."""
     
-    HR_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi tuyển dụng. Hãy phân tích đoạn hội thoại sau và phân loại ứng viên vào 1 trong 5 nhóm.
-Nhóm 1: Chưa tư vấn
-Nhóm 2: Cần gọi lại (Lý do: KNM_1, KNM_4, SUY_NGHI_THEM, KHACH_BAN)
-Nhóm 3: UV Tiềm năng (Lý do: CHUA_CHOT_NGAY, CHO_CCCD, HEN_XA)
-Nhóm 4: Hẹn phỏng vấn (Lý do: HEN_PHONG_VAN)
-Nhóm 5: Đi làm tạm tính (Lý do: DI_LAM)
-
+    # Fallback cho HR
+    HR_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi tuyển dụng. Hãy phân loại vào 1 trong 5 nhóm:
+Nhóm 1: Không có nội dung / Lỗi kết nối (LOI_AM_THANH, CUOC_GOI_RONG, SAI_SO_NHAM_SO)
+Nhóm 2: Không thành công / Cần gọi lại (KNM_DAP_MAY, KHACH_BAN, TU_CHOI_LUON, SUY_NGHI_THEM)
+Nhóm 3: Tiềm năng (CHUA_CHOT_NGAY, CHO_GIAY_TO, HEN_XA)
+Nhóm 4: Đã hẹn lịch (HEN_PHONG_VAN)
+Nhóm 5: Chốt thành công (DI_LAM)
 Tên ứng viên: {contact_name}
-Nội dung cuộc gọi:
-\"\"\"
-{context_data}
-\"\"\"
-Trả về JSON đúng cấu trúc:
-{{"summary": "Tóm tắt cuộc gọi", "status_group": 1, "reason_code": "Mã lý do", "appointment_date": null, "recommended_message": "Tin nhắn gợi ý"}}"""
+Nội dung: {context_data}
+Trả về JSON đúng cấu trúc có summary, status_group, reason_code, appointment_date, recommended_message."""
 
 logger = logging.getLogger(__name__)
 
