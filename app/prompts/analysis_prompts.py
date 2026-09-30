@@ -16,14 +16,14 @@ _STATUS_DEFINITIONS = """\
 
 _OUTPUT_SCHEMA = """\
 ## Định dạng output (JSON thuần, KHÔNG bọc markdown):
-{
+{{
   "thinking": "Chuỗi suy luận ngắn gọn của bạn (2-3 câu): phân tích thái độ ứng viên và chốt lý do",
   "summary": "Tóm tắt khách quan nội dung cuộc gọi (1-2 câu tiếng Việt)",
   "status_group": <số nguyên 1-5>,
   "reason_code": "<mã lý do TỪ BẢNG TRÊN>",
   "appointment_date": "<ISO 8601: YYYY-MM-DDTHH:MM:00 nếu có lịch hẹn, ngược lại null>",
   "recommended_message": "Tin nhắn Zalo/SMS follow-up gửi cho ứng viên (tiếng Việt)"
-}
+}}
 """
 
 _HR_FEW_SHOT_EXAMPLES = """\
