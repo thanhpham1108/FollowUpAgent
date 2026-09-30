@@ -41,7 +41,7 @@ async def main():
                 transcript = stt_result["text"].strip()
                 
                 # 2. Chạy LLM
-                analysis = await llm_service.analyze_audio(transcript, contact_name="Khách hàng")
+                analysis = await llm_service.analyze_audio(transcript, contact_name="Ứng viên")
                 
                 # 3. Ghi kết quả
                 writer.writerow([
