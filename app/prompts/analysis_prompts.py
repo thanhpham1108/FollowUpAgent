@@ -15,7 +15,7 @@ _STATUS_DEFINITIONS = """\
 """
 
 _OUTPUT_SCHEMA = """\
-## Định dạng output (JSON thuần, KHÔNG bọc markdown):
+## Định dạng output (JSON thuần, KHÔNG bọc markdown - TUYỆT ĐỐI KHÔNG CHẾ THÊM CÁC TRƯỜNG KHÁC):
 {{
   "thinking": "Chuỗi suy luận ngắn gọn của bạn (2-3 câu): phân tích thái độ ứng viên và chốt lý do",
   "summary": "Tóm tắt khách quan nội dung cuộc gọi (1-2 câu tiếng Việt)",
@@ -88,6 +88,15 @@ HR_ANALYSIS_TEMPLATE = f"""\
 {_HR_FEW_SHOT_EXAMPLES}
 
 ---
+
+---
+## Bối cảnh Dự án (Đọc kỹ để phân biệt ai đang nói):
+1. ĐÂY KHÔNG PHẢI LÀ AUDIO CÓ PHÂN TÁCH GIỌNG. Bản bóc băng là một đoạn text liền mạch.
+2. Công việc: TUYỂN CÔNG NHÂN cho các nhà máy, xí nghiệp nước ngoài (không phải công trình).
+3. Người gọi (HR): Thường là người nói trước, hay xưng "em", gọi "anh/chị", giới thiệu: "Dạ em chào anh, em đến từ công ty tìm việc 3 miền...". Nhiệm vụ của HR là mời đi làm công nhân.
+4. Người nghe (Ứng viên): Thường trả lời ngắn gọn sau câu giới thiệu của HR (Ví dụ: "Anh đi làm rồi", "Công ty ở đâu", "Lương bao nhiêu").
+=> Dựa vào quy luật này để suy luận đâu là câu của HR, đâu là câu phản hồi của ứng viên.
+
 ## Nhiệm vụ thực tế của bạn:
 Tên ứng viên: {{contact_name}}
 Nội dung bóc băng (Transcript):

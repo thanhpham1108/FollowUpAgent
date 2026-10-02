@@ -145,8 +145,20 @@ class LLMService:
             parsed_data.pop("thinking", None)  # Loại bỏ chain-of-thought khỏi kết quả cuối
 
             # Ép kiểu định dạng và trả về Object Pydantic AnalysisResult chuẩn hóa
+                        # Xử lý trường hợp LLM sinh ra JSON linh tinh (như status_group="OK")
+            raw_status = parsed_data.get("status_group", 1)
+            try:
+                status_group = int(raw_status)
+            except (ValueError, TypeError):
+                status_group = 1
+                
             return AnalysisResult(
                 summary=parsed_data.get("summary") or "Không có tóm tắt.",
+                status_group=status_group,
+                reason_code=str(parsed_data.get("reason_code") or "UNKNOWN"),
+                appointment_date=parsed_data.get("appointment_date"),
+                recommended_message=parsed_data.get("recommended_message") or ""
+            ) or "Không có tóm tắt.",
                 status_group=int(parsed_data.get("status_group") or 1),
                 reason_code=str(parsed_data.get("reason_code") or "UNKNOWN"),
                 appointment_date=parsed_data.get("appointment_date"),
