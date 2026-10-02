@@ -142,7 +142,14 @@ def transcribe_audio(file_path: Path) -> dict:
     str_path = str(file_path.resolve())
     logger.info(f"Đang tiến hành nhận diện (STT): {str_path}")
 
-    result = model(str_path)
+    result = model(
+        str_path,
+        generate_kwargs={
+            "no_repeat_ngram_size": 3,
+            "repetition_penalty": 1.1,
+            "temperature": 0.0
+        }
+    )
 
     return {
         "text": result.get("text", "").strip(),
