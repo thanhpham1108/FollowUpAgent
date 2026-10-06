@@ -15,6 +15,11 @@ except ImportError:
     class AudioDownloadError(Exception): pass
     class AudioValidationError(Exception): pass
 
+try:
+    from app.utils.text_normalizer import normalize_transcript
+except ImportError:
+    def normalize_transcript(text: str) -> str: return text
+
 logger = logging.getLogger(__name__)
 
 # Load model một lần khi khởi động (tránh load lại mỗi request)
@@ -150,8 +155,11 @@ def transcribe_audio(file_path: Path) -> dict:
         }
     )
 
+    raw_text = result.get("text", "").strip()
+    clean_text = normalize_transcript(raw_text)
+
     return {
-        "text": result.get("text", "").strip(),
+        "text": clean_text,
         "language": "vi",  # PhoWhisper chủ yếu hỗ trợ tiếng Việt
         "segments": result.get("chunks", []),
     }

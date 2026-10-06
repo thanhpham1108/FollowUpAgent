@@ -16,9 +16,10 @@ Phân tích transcript (nội dung đã chuyển từ âm thanh thành văn bả
 
 ## Cấu trúc JSON mong đợi (BẮT BUỘC):
 {
-  "summary": "Tóm tắt ngắn gọn cuộc gọi trong 1-2 câu",
+  "summary": "Tóm tắt chi tiết cuộc gọi trong 3-5 câu (nêu bối cảnh, thông tin trao đổi, thái độ ứng viên và thỏa thuận/kết quả)",
   "status_group": 1,
   "reason_code": "Mã lý do lấy từ danh sách",
+  "call_decision": "NO_CALL | CALL_BACK | FOLLOW_UP | SCHEDULED | SUCCESS",
   "appointment_date": null,
   "recommended_message": "Tin nhắn gợi ý gửi cho khách hàng/ứng viên",
   "thinking": "Lý do ngắn gọn giải thích vì sao chọn status_group và reason_code này"
