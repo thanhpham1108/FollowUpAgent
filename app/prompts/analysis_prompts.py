@@ -2,6 +2,13 @@
 # app/prompts/analysis_prompts.py - PROMPT VERSION 4 (PURE HR RECRUITMENT)
 # Tập trung 100% vào nghiệp vụ Tuyển dụng Nhân sự, mở rộng Few-shot
 # -------------------------------------------------------
+try:
+    from app.core.companies import get_companies_prompt_string, get_industrial_parks_prompt_string
+    _COMPANIES_STR = get_companies_prompt_string()
+    _KCN_STR = get_industrial_parks_prompt_string()
+except ImportError:
+    _COMPANIES_STR = "Luxshare ICT, Foxconn, Goertek, Pegatron, Quanta, Wistron, Canon, Lens, Brother, Biel Crystal, LG Display, VinFast, Vixech, Siflex, Samkwang, Sumi, Shinwon, Fushan..."
+    _KCN_STR = "Quang Châu, Vân Trung, Quế Võ, VSIP, Đồng Văn, Hòa Phú, Đình Trám, Yên Phong, Khai Quang, Tràng Duệ..."
 
 _STATUS_DEFINITIONS = """\
 ## Bảng phân loại trạng thái (Nghiệp vụ Tuyển dụng):
@@ -94,9 +101,9 @@ HR_ANALYSIS_TEMPLATE = f"""\
 ## Bối cảnh Dự án (Đọc kỹ để phân biệt ai đang nói):
 1. ĐÂY KHÔNG PHẢI LÀ AUDIO CÓ PHÂN TÁCH GIỌNG. Bản bóc băng là một đoạn text liền mạch.
 2. Công việc: TUYỂN CÔNG NHÂN cho các nhà máy, xí nghiệp nước ngoài (không phải công trình).
-3. Doanh nghiệp & KCN phổ biến:
-   - Doanh nghiệp tuyển dụng: Vixech, Foxconn, Luxshare, Canon, Samsung, Goertek...
-   - Khu công nghiệp: Quang Châu, Vân Trung, Quế Võ, Đình Trám, Yên Phong...
+3. Danh mục Toàn bộ Doanh nghiệp Tuyển dụng Đối tác (Hệ thống Việc 3 Miền):
+   - Doanh nghiệp đối tác: {_COMPANIES_STR}
+   - Khu công nghiệp trọng điểm: {_KCN_STR}
 4. Người gọi (HR): Thường là người nói trước, hay xưng "em", gọi "anh/chị", giới thiệu: "Dạ em chào anh, em đến từ công ty tìm việc 3 miền...". Nhiệm vụ của HR là mời đi làm công nhân.
 5. Người nghe (Ứng viên): Thường trả lời ngắn gọn sau câu giới thiệu của HR (Ví dụ: "Anh đi làm rồi", "Công ty ở đâu", "Lương bao nhiêu").
 => Dựa vào quy luật này để suy luận đâu là câu của HR, đâu là câu phản hồi của ứng viên.
