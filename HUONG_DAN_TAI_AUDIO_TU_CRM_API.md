@@ -259,8 +259,9 @@ Sau khi xem transcript và các mã AI trên mẫu, chạy toàn bộ:
 
 ```bash
 python scripts/auto_label_ground_truth.py \
-  --audio-dir data/recordings_import/audio \
-  --output data/recordings_import/ground_truth_review.csv
+  --audio-dir /home/thanhpnc/datacore/FollowUpAgent/data/recordings_import/audio \
+  --output /home/thanhpnc/datacore/FollowUpAgent/data/recordings_import/ground_truth_review_713.csv \
+  --expected-count 713 --resume
 ```
 
-Nếu tên CSV đã tồn tại, script thêm thời gian vào tên để không ghi đè nhãn cũ. Chạy lại sẽ tạo CSV mới, nên giữ terminal ổn định trong lúc xử lý cả lô. Những file tải lỗi hoặc chưa tải sẽ không có `.wav` để gán nhãn; kiểm tra `failed_call_ids.txt` và số WAV trước khi bắt đầu.
+`--expected-count 713` chặn chạy khi số WAV chưa đủ; `--resume` giữ CSV cố định và bỏ qua dòng AI đã thành công. Lỗi từng file được ghi vào `ground_truth_review_713_error_log.csv`, file đó là lịch sử lỗi; file thiếu dòng thành công sẽ được thử lại khi chạy lại cùng lệnh. Nếu 5 file liên tiếp lỗi, script dừng để kiểm tra Ollama/STT. Không mở và lưu CSV trong Excel khi script đang ghi vào nó. Nếu không dùng `--resume`, script giữ hành vi cũ: tạo CSV có tên thời gian khi output đã tồn tại.
