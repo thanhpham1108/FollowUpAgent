@@ -4,13 +4,13 @@
     "contact_name": "Nguyễn Văn Hùng",
     "transcript": "A: Xin chào anh Hùng, em gọi từ công ty... B: Tôi đang bận. Gọi lại sau đi. [Cúp máy]",
     "expected_status_group": 2,
-    "expected_reason_code": "KNM_1"
+    "expected_reason_code": "KHACH_BAN"
   },
   {
     "id": "case_02_need_think",
     "contact_name": "Trần Thị Lan",
     "transcript": "A: Chị đã xem qua thông tin vị trí bên em chưa ạ? B: Có rồi, nghe cũng hay đó. Nhưng mà chị cần suy nghĩ thêm tí. A: Dạ vậy em gọi lại cho chị sau nhé. B: Ừ được.",
-    "expected_status_group": 2,
+    "expected_status_group": 3,
     "expected_reason_code": "SUY_NGHI_THEM"
   },
   {
@@ -25,7 +25,7 @@
     "contact_name": "Phạm Thị Hoa",
     "transcript": "A: Chị ơi, chị có thể cung cấp CCCD để bên em hoàn tất hồ sơ không ạ? B: Ủa CCCD chị đang chờ làm lại, mấy tuần nữa mới có. A: Dạ vậy khi nào chị có thì báo em nhé. B: Ừ được.",
     "expected_status_group": 3,
-    "expected_reason_code": "CHO_CCCD"
+    "expected_reason_code": "CHO_GIAY_TO"
   },
   {
     "id": "case_05_start_work",
@@ -38,15 +38,15 @@
     "id": "case_06_refuse_call",
     "contact_name": "Nguyễn Thị Bích",
     "transcript": "A: Xin chào chị Bích, em tư vấn về cơ hội việc làm... B: Thôi đừng gọi nữa. Tôi không quan tâm đâu. [Cúp máy]",
-    "expected_status_group": 2,
-    "expected_reason_code": "KNM_4"
+    "expected_status_group": 1,
+    "expected_reason_code": "TU_CHOI_LUON"
   },
   {
     "id": "case_07_no_advice_yet",
     "contact_name": "Trần Văn Nam",
     "transcript": "A: Xin chào anh Nam ạ. B: Ừ ai đó? A: Em từ công ty tuyển dụng XYZ ạ. B: À ừ, nhưng mà anh đang ở ngoài, anh không nghe rõ. Thôi cúp đây.",
-    "expected_status_group": 1,
-    "expected_reason_code": "CHUA_TU_VAN"
+    "expected_status_group": 2,
+    "expected_reason_code": "KHACH_BAN"
   },
   {
     "id": "case_08_far_appointment",

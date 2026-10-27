@@ -1,6 +1,6 @@
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.models import CallRecord, FollowUpTask, AuditLog, FollowUpStatus
 from app.schemas.response import AnalysisResult
@@ -45,9 +45,12 @@ class RuleEngineService:
             # Nhóm 4: Đã có lịch phỏng vấn (HEN_PHONG_VAN)
             if analysis.appointment_date:
                 try:
-                    # Giả định appointment_date dạng YYYY-MM-DD
-                    appt_date = datetime.strptime(analysis.appointment_date, "%Y-%m-%d")
-                    # Lên lịch nhắc nhở 1 ngày trước lịch hẹn (hoặc đúng ngày tùy nghiệp vụ)
+                    # Lịch hẹn không có offset được hiểu theo giờ Việt Nam; DB lưu UTC không kèm timezone.
+                    appt_date = datetime.fromisoformat(analysis.appointment_date.replace("Z", "+00:00"))
+                    if appt_date.tzinfo is None:
+                        appt_date = appt_date.replace(tzinfo=timezone(timedelta(hours=7)))
+                    appt_date = appt_date.astimezone(timezone.utc).replace(tzinfo=None)
+                    # Lên lịch nhắc nhở 1 ngày trước lịch hẹn.
                     scheduled_at = appt_date - timedelta(days=1)
                     if scheduled_at < now:
                         scheduled_at = now + timedelta(hours=1)

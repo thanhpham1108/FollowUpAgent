@@ -5,6 +5,8 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from pydantic import model_validator
+from app.core.classification import CallDecision, GROUP_CALL_DECISION, REASON_CODE_GROUP, ReasonCode
 
 
 # ─── 1. Phản hồi tức thời khi nhận Request (API Responses) ─────────────────────────
@@ -39,10 +41,17 @@ class AnalysisResult(BaseModel):
     """Chi tiết kết quả xử lý từ mô hình AI (STT & LLM)"""
     summary: str = Field(..., description="Tóm tắt cuộc gọi/phỏng vấn")
     status_group: int = Field(..., description="Thuộc nhóm trạng thái nào (1 đến 5)")
-    reason_code: str = Field(..., description="Mã lý do chi tiết (Ví dụ: KNM_DAP_MAY, TU_CHOI_LUON, KHACH_BAN, SUY_NGHI_THEM)")
-    call_decision: str = Field("NO_CALL", description="Hành động gợi ý: NO_CALL | CALL_BACK | FOLLOW_UP | SCHEDULED | SUCCESS")
+    reason_code: ReasonCode = Field(..., description="Mã lý do phải thuộc danh sách nghiệp vụ đã định nghĩa")
+    call_decision: CallDecision = Field(CallDecision.NO_CALL, description="Hành động được suy ra từ reason_code")
     appointment_date: Optional[str] = Field(None, description="Ngày hẹn thực tế nếu thuộc Nhóm 4")
     recommended_message: str = Field(..., description="Tin nhắn follow-up gợi ý cho kênh tương tác")
+
+    @model_validator(mode="after")
+    def derive_group_and_decision(self):
+        group = REASON_CODE_GROUP[self.reason_code]
+        self.status_group = group
+        self.call_decision = CallDecision(GROUP_CALL_DECISION[group])
+        return self
 
 
 # ─── 3. Webhook Payloads (AI → CRM) ─────────────────────────────────────────────

@@ -30,7 +30,7 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       # Override DATABASE_URL để trỏ vào container db (thay vì localhost)
-      - DATABASE_URL=postgresql://postgres:password@db:5432/followup_agent
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/followup_agent
     depends_on:
       db:
         condition: service_healthy

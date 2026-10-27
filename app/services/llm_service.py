@@ -9,36 +9,38 @@ from typing import Optional
 
 from app.core.config import settings
 from app.schemas.response import AnalysisResult
+from app.core.classification import GROUP_CALL_DECISION, REASON_CODE_GROUP, ReasonCode
 from app.core.exceptions import LLMProcessingError
-
-try:
-    from app.prompts.analysis_prompts import SALES_ANALYSIS_TEMPLATE, HR_ANALYSIS_TEMPLATE
-    from app.prompts.system_prompts import SYSTEM_PROMPT
-except ImportError:
-    SYSTEM_PROMPT = "Bạn là chuyên viên phân tích cuộc gọi. Chỉ trả về JSON thuần."
-    # Fallback cho Sales
-    SALES_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi bán hàng. Hãy phân loại vào 1 trong 5 nhóm:
-Nhóm 1: Không có nội dung / Lỗi kết nối (LOI_AM_THANH, CUOC_GOI_RONG, SAI_SO_NHAM_SO)
-Nhóm 2: Không thành công / Cần gọi lại (KNM_DAP_MAY, KHACH_BAN, TU_CHOI_LUON, SUY_NGHI_THEM)
-Nhóm 3: Tiềm năng (CHUA_CHOT_NGAY, CHO_GIAY_TO, HEN_XA)
-Nhóm 4: Đã hẹn lịch (HEN_PHONG_VAN)
-Nhóm 5: Chốt thành công (DI_LAM)
-Tên khách hàng: {contact_name}
-Nội dung: {context_data}
-Trả về JSON đúng cấu trúc có summary, status_group, reason_code, appointment_date, recommended_message."""
-    
-    # Fallback cho HR
-    HR_ANALYSIS_TEMPLATE = """Bạn là chuyên gia phân tích cuộc gọi tuyển dụng. Hãy phân loại vào 1 trong 5 nhóm:
-Nhóm 1: Không có nội dung / Lỗi kết nối (LOI_AM_THANH, CUOC_GOI_RONG, SAI_SO_NHAM_SO)
-Nhóm 2: Không thành công / Cần gọi lại (KNM_DAP_MAY, KHACH_BAN, TU_CHOI_LUON, SUY_NGHI_THEM)
-Nhóm 3: Tiềm năng (CHUA_CHOT_NGAY, CHO_GIAY_TO, HEN_XA)
-Nhóm 4: Đã hẹn lịch (HEN_PHONG_VAN)
-Nhóm 5: Chốt thành công (DI_LAM)
-Tên ứng viên: {contact_name}
-Nội dung: {context_data}
-Trả về JSON đúng cấu trúc có summary, status_group, reason_code, appointment_date, recommended_message."""
+from app.prompts.analysis_prompts import HR_ANALYSIS_TEMPLATE
+from app.prompts.system_prompts import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
+
+_ANALYSIS_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "status_group": {"type": "integer", "enum": [1, 2, 3, 4, 5]},
+        "reason_code": {"type": "string", "enum": [code.value for code in ReasonCode]},
+        "call_decision": {
+            "type": "string",
+            "enum": list(dict.fromkeys(GROUP_CALL_DECISION.values())),
+        },
+        "appointment_date": {"type": ["string", "null"]},
+        "recommended_message": {"type": "string"},
+        "thinking": {"type": "string"},
+    },
+    "required": [
+        "summary",
+        "status_group",
+        "reason_code",
+        "call_decision",
+        "appointment_date",
+        "recommended_message",
+        "thinking",
+    ],
+    "additionalProperties": False,
+}
 
 
 class LLMService:
@@ -107,14 +109,11 @@ class LLMService:
         """
         Xử lý phân tích dữ liệu bằng cách gửi HTTP Request tới Ollama
         """
-        try:
-            context_data = transcript
+        if context_type != "hr":
+            raise LLMProcessingError(f"Chưa có bộ reason_code cho context_type={context_type!r}")
 
-            # Lựa chọn Template
-            if context_type == "sales":
-                prompt = SALES_ANALYSIS_TEMPLATE.format(contact_name=contact_name, context_data=context_data)
-            else:
-                prompt = HR_ANALYSIS_TEMPLATE.format(contact_name=contact_name, context_data=context_data)
+        try:
+            prompt = HR_ANALYSIS_TEMPLATE.format(contact_name=contact_name, context_data=transcript)
 
             logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name} qua Ollama...")
             
@@ -125,7 +124,14 @@ class LLMService:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
-                "format": "json",    # Ép Ollama phải trả về chuẩn JSON
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "recruitment_call_analysis",
+                        "strict": True,
+                        "schema": _ANALYSIS_OUTPUT_SCHEMA,
+                    },
+                },
                 "temperature": 0.0,  # Tối thiểu sáng tạo -> JSON phải chuẩn xác
                 "max_tokens": 1500   # Tăng lên để có đủ chỗ cho chain-of-thought
             }
@@ -136,6 +142,17 @@ class LLMService:
                     f"{settings.OLLAMA_API_BASE_URL}/chat/completions",
                     json=payload
                 )
+                if response.status_code in (400, 422) and any(
+                    marker in response.text.lower()
+                    for marker in ("json_schema", "json schema", "response_format", "response format")
+                ):
+                    logger.warning("Ollama không hỗ trợ JSON Schema; thử lại bằng JSON mode.")
+                    payload.pop("response_format")
+                    payload["format"] = "json"
+                    response = await client.post(
+                        f"{settings.OLLAMA_API_BASE_URL}/chat/completions",
+                        json=payload
+                    )
                 response.raise_for_status()
                 data = response.json()
             
@@ -144,16 +161,15 @@ class LLMService:
             parsed_data = self._safe_parse_json(raw_text)
             parsed_data.pop("thinking", None)
 
-            raw_status = parsed_data.get("status_group", 1)
-            try:
-                status_group = int(raw_status)
-            except (ValueError, TypeError):
-                status_group = 1
+            reason_code = ReasonCode(parsed_data["reason_code"])
+            status_group = REASON_CODE_GROUP[reason_code]
+            call_decision = GROUP_CALL_DECISION[status_group]
 
             return AnalysisResult(
                 summary=parsed_data.get("summary") or "Không có tóm tắt.",
                 status_group=status_group,
-                reason_code=str(parsed_data.get("reason_code") or "UNKNOWN"),
+                reason_code=reason_code,
+                call_decision=call_decision,
                 appointment_date=parsed_data.get("appointment_date"),
                 recommended_message=parsed_data.get("recommended_message") or ""
             )

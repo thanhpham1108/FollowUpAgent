@@ -2,6 +2,8 @@
 # app/prompts/analysis_prompts.py - PROMPT VERSION 4 (PURE HR RECRUITMENT)
 # Tập trung 100% vào nghiệp vụ Tuyển dụng Nhân sự, mở rộng Few-shot
 # -------------------------------------------------------
+from app.core.classification import GROUP_CALL_DECISION, reason_codes_for_group
+
 try:
     from app.core.companies import get_companies_prompt_string, get_industrial_parks_prompt_string
     _COMPANIES_STR = get_companies_prompt_string()
@@ -10,16 +12,28 @@ except ImportError:
     _COMPANIES_STR = "Luxshare ICT, Foxconn, Goertek, Pegatron, Quanta, Wistron, Canon, Lens, Brother, Biel Crystal, LG Display, VinFast, Vixech, Siflex, Samkwang, Sumi, Shinwon, Fushan..."
     _KCN_STR = "Quang Châu, Vân Trung, Quế Võ, VSIP, Đồng Văn, Hòa Phú, Đình Trám, Yên Phong, Khai Quang, Tràng Duệ..."
 
-_STATUS_DEFINITIONS = """\
-## Bảng phân loại trạng thái (Nghiệp vụ Tuyển dụng):
-| Nhóm | Tên Nhóm Nghiệp vụ | Mã lý do (reason_code) hợp lệ | Hành động (call_decision) |
-|------|---------------------|-------------------------------|---------------------------|
-| 1 | Đóng hồ sơ / Bỏ qua | TU_CHOI_LUON, KNM_DAP_MAY, SAI_SO_NHAM_SO | NO_CALL |
-| 2 | Gián đoạn / Cần gọi lại | KHACH_BAN, CUOC_GOI_RONG, LOI_AM_THANH | CALL_BACK |
-| 3 | Tiềm năng / Chăm sóc | SUY_NGHI_THEM, CHUA_CHOT_NGAY, CHO_GIAY_TO, HEN_XA | FOLLOW_UP |
-| 4 | Đã hẹn phỏng vấn | HEN_PHONG_VAN | SCHEDULED |
-| 5 | Chốt thành công | DI_LAM | SUCCESS |
-"""
+_GROUP_LABELS = {
+    1: "Đóng hồ sơ / Bỏ qua",
+    2: "Gián đoạn / Cần gọi lại",
+    3: "Tiềm năng / Chăm sóc",
+    4: "Đã hẹn phỏng vấn",
+    5: "Chốt thành công",
+}
+
+_STATUS_DEFINITIONS = "\n".join(
+    [
+        "## Bảng phân loại trạng thái (Nghiệp vụ Tuyển dụng):",
+        "| Nhóm | Tên Nhóm Nghiệp vụ | Mã lý do hợp lệ | Hành động |",
+        "|------|---------------------|-----------------|-----------|",
+        *[
+            f"| {group} | {_GROUP_LABELS[group]} | {', '.join(code.value for code in reason_codes_for_group(group))} | {GROUP_CALL_DECISION[group]} |"
+            for group in range(1, 6)
+        ],
+        "",
+        "Chỉ được chọn reason_code chính xác từ bảng. Không dịch, viết lại, tạo mã mới hoặc trả UNKNOWN.",
+        "status_group và call_decision sẽ được hệ thống suy ra từ reason_code.",
+    ]
+)
 
 _OUTPUT_SCHEMA = """\
 ## Định dạng output (JSON thuần, KHÔNG bọc markdown - TUYỆT ĐỐI KHÔNG CHẾ THÊM CÁC TRƯỜNG KHÁC):
@@ -27,8 +41,8 @@ _OUTPUT_SCHEMA = """\
   "thinking": "Chuỗi suy luận ngắn gọn của bạn (2-3 câu): phân tích thái độ ứng viên và chốt lý do",
   "summary": "Tóm tắt chi tiết cuộc gọi (3-5 câu tiếng Việt, nêu rõ: mục đích/vị trí trao đổi, thông tin ứng viên chia sẻ hoặc vướng mắc, thái độ/phản hồi của ứng viên, và thỏa thuận hoặc kết quả chốt cuối cùng)",
   "status_group": <số nguyên 1-5 theo bảng trên>,
-  "reason_code": "<mã lý do TỪ BẢNG TRÊN>",
-  "call_decision": "<NO_CALL | CALL_BACK | FOLLOW_UP | SCHEDULED | SUCCESS khớp với Nhóm>",
+  "reason_code": "<chọn chính xác một mã trong danh sách, không tự tạo mã>",
+  "call_decision": "<giá trị do hệ thống suy ra từ reason_code>",
   "appointment_date": "<ISO 8601: YYYY-MM-DDTHH:MM:00 nếu có lịch hẹn, ngược lại null>",
   "recommended_message": "Tin nhắn Zalo/SMS follow-up gửi cho ứng viên (tiếng Việt)"
 }}
@@ -76,9 +90,9 @@ Output:
 
 ### 7. Ứng viên chốt lịch phỏng vấn cụ thể (Nhóm 4 - Lịch hẹn)
 Tên ứng viên: Ngô Thị G
-Nội dung: "Vâng chị, vậy sáng mai tầm 9 rưỡi em qua văn phòng công ty nộp hồ sơ phỏng vấn luôn ạ."
+Nội dung: "Vâng chị, vậy ngày 15/11/2026 lúc 9 rưỡi em qua văn phòng công ty nộp hồ sơ phỏng vấn luôn ạ."
 Output:
-{{"thinking": "Ứng viên đồng ý đến phỏng vấn vào sáng mai lúc 9:30. Đây là lịch hẹn cụ thể.", "summary": "Nhân viên trao đổi và mời ứng viên Ngô Thị G tham gia phỏng vấn trực tiếp tại văn phòng. Ứng viên đồng ý với các yêu cầu công việc và xác nhận sẽ đến nộp hồ sơ vào lúc 9:30 sáng mai. Hai bên đã chốt lịch hẹn cụ thể và chuẩn bị các giấy tờ liên quan.", "status_group": 4, "reason_code": "HEN_PHONG_VAN", "call_decision": "SCHEDULED", "appointment_date": "NGAY_MAI_9H30", "recommended_message": "Chào G! Cảm ơn em đã xác nhận lịch. Hẹn gặp em vào 9:30 sáng mai tại văn phòng công ty nhé. Đi đường cẩn thận nha!"}}
+{{"thinking": "Ứng viên đồng ý đến phỏng vấn ngày 15/11/2026 lúc 9:30. Đây là lịch hẹn cụ thể.", "summary": "Nhân viên trao đổi và mời ứng viên Ngô Thị G tham gia phỏng vấn trực tiếp tại văn phòng. Ứng viên đồng ý với các yêu cầu công việc và xác nhận sẽ đến nộp hồ sơ vào lúc 9:30 ngày 15/11/2026. Hai bên đã chốt lịch hẹn cụ thể và chuẩn bị các giấy tờ liên quan.", "status_group": 4, "reason_code": "HEN_PHONG_VAN", "call_decision": "SCHEDULED", "appointment_date": "2026-11-15T09:30:00", "recommended_message": "Chào G! Cảm ơn em đã xác nhận lịch. Hẹn gặp em vào 9:30 ngày 15/11 tại văn phòng công ty nhé. Đi đường cẩn thận nha!"}}
 
 ### 8. Ứng viên chốt đi làm (Nhóm 5 - Thành công)
 Tên ứng viên: Vũ Văn H
@@ -86,9 +100,6 @@ Nội dung: "Em mang hồ sơ qua rồi, giám đốc bảo thứ hai tuần sau
 Output:
 {{"thinking": "Ứng viên đã nộp hồ sơ và được xác nhận thứ 2 tuần sau đi làm chính thức. Tuyển dụng thành công.", "summary": "Nhân viên kiểm tra kết quả tuyển dụng của ứng viên Vũ Văn H. Ứng viên xác nhận đã hoàn tất nộp hồ sơ và được giám đốc trực tiếp phê duyệt tiếp nhận. Hai bên đã thống nhất lịch đi làm chính thức bắt đầu từ thứ Hai tuần tới.", "status_group": 5, "reason_code": "DI_LAM", "call_decision": "SUCCESS", "appointment_date": null, "recommended_message": "Tuyệt vời quá! Chúc mừng H gia nhập công ty nhé. Chuẩn bị tinh thần thứ 2 tuần sau chiến đấu thôi!"}}
 """
-
-# Vì chỉ có nghiệp vụ HR, ta trỏ Sales về cùng một cấu trúc để không bị lỗi nếu code gọi nhầm
-_SALES_FEW_SHOT_EXAMPLES = _HR_FEW_SHOT_EXAMPLES
 
 HR_ANALYSIS_TEMPLATE = f"""\
 {_STATUS_DEFINITIONS}
@@ -124,5 +135,3 @@ Lưu ý quan trọng:
 
 JSON output:
 """
-
-SALES_ANALYSIS_TEMPLATE = HR_ANALYSIS_TEMPLATE
