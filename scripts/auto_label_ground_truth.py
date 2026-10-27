@@ -8,8 +8,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Allow running the script directly from the project root.
-sys.path.append(str(Path(__file__).parent.parent))
+# Resolve paths from this script so the command works from any working directory.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(PROJECT_ROOT))
+DEFAULT_AUDIO_DIR = PROJECT_ROOT / "data/recordings_import/audio"
+DEFAULT_OUTPUT_CSV = PROJECT_ROOT / "data/recordings_import/ground_truth_review_713.csv"
+DEFAULT_EXPECTED_COUNT = 713
 
 COLUMNS = [
     "File_Name",
@@ -55,18 +59,15 @@ def log_error(error_csv: Path, file_name: str, error: Exception) -> None:
 
 
 async def main(
-    audio_dir: Path = Path("data"),
-    output_csv: Path = Path("data/ground_truth_review.csv"),
+    audio_dir: Path = DEFAULT_AUDIO_DIR,
+    output_csv: Path = DEFAULT_OUTPUT_CSV,
     limit: int = 0,
-    resume: bool = False,
+    resume: bool = True,
     expected_count: int | None = None,
     transcribe_fn=None,
     analyze_fn=None,
 ) -> int:
     wav_files = sorted(audio_dir.glob("*.wav"))
-    if not wav_files and audio_dir == Path("data"):
-        # Legacy fallback for WAV files in the project root.
-        wav_files = sorted(Path(".").glob("*.wav"))
     if not wav_files:
         print(f"Không tìm thấy file .wav nào trong {audio_dir}.", file=sys.stderr)
         return 2
@@ -168,14 +169,22 @@ async def main(
     return 0 if done == len(wav_files) and failures == 0 else 1
 
 
-if __name__ == "__main__":
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Chạy STT và LLM để tạo CSV cho người gán nhãn kiểm tra")
-    parser.add_argument("--audio-dir", type=Path, default=Path("data"), help="Thư mục chứa các file .wav")
-    parser.add_argument("--output", type=Path, default=Path("data/ground_truth_review.csv"), help="CSV kết quả")
+    parser.add_argument("--audio-dir", type=Path, default=DEFAULT_AUDIO_DIR, help="Thư mục chứa các file .wav")
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_CSV, help="CSV kết quả")
     parser.add_argument("--limit", type=int, default=0, help="Số file đầu tiên cần xử lý; 0 là tất cả")
-    parser.add_argument("--resume", action="store_true", help="Tiếp tục CSV hiện có, bỏ qua file đã phân tích thành công")
+    parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True,
+                        help="Tiếp tục CSV hiện có; dùng --no-resume để tạo file mới")
     parser.add_argument("--expected-count", type=int, help="Số WAV mong đợi trong thư mục trước khi bắt đầu")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.limit < 0 or (args.expected_count is not None and args.expected_count <= 0):
         parser.error("--limit phải >= 0 và --expected-count phải > 0")
+    if args.expected_count is None and args.audio_dir.resolve() == DEFAULT_AUDIO_DIR:
+        args.expected_count = DEFAULT_EXPECTED_COUNT
+    return args
+
+
+if __name__ == "__main__":
+    args = parse_args()
     raise SystemExit(asyncio.run(main(args.audio_dir, args.output, args.limit, args.resume, args.expected_count)))

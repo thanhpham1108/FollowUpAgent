@@ -5,7 +5,12 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from scripts.auto_label_ground_truth import main
+from scripts.auto_label_ground_truth import (
+    DEFAULT_AUDIO_DIR,
+    DEFAULT_OUTPUT_CSV,
+    main,
+    parse_args,
+)
 
 
 def analysis_result():
@@ -20,6 +25,17 @@ def analysis_result():
 
 
 class AutoLabelTests(unittest.TestCase):
+    def test_cli_defaults_target_new_batch_and_guard_713_files(self):
+        args = parse_args([])
+        self.assertEqual(args.audio_dir, DEFAULT_AUDIO_DIR)
+        self.assertEqual(args.output, DEFAULT_OUTPUT_CSV)
+        self.assertEqual(args.expected_count, 713)
+        self.assertTrue(args.resume)
+
+        custom = parse_args(["--audio-dir", "data/sample", "--no-resume"])
+        self.assertIsNone(custom.expected_count)
+        self.assertFalse(custom.resume)
+
     def test_resume_retries_failed_file_without_duplicate_or_losing_human_label(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -255,13 +255,10 @@ python scripts/auto_label_ground_truth.py \
   --limit 5
 ```
 
-Sau khi xem transcript và các mã AI trên mẫu, chạy toàn bộ:
+Sau khi xem transcript và các mã AI trên mẫu, chạy toàn bộ từ thư mục project:
 
 ```bash
-python scripts/auto_label_ground_truth.py \
-  --audio-dir /home/thanhpnc/datacore/FollowUpAgent/data/recordings_import/audio \
-  --output /home/thanhpnc/datacore/FollowUpAgent/data/recordings_import/ground_truth_review_713.csv \
-  --expected-count 713 --resume
+python scripts/auto_label_ground_truth.py
 ```
 
-`--expected-count 713` chặn chạy khi số WAV chưa đủ; `--resume` giữ CSV cố định và bỏ qua dòng AI đã thành công. Lỗi từng file được ghi vào `ground_truth_review_713_error_log.csv`, file đó là lịch sử lỗi; file thiếu dòng thành công sẽ được thử lại khi chạy lại cùng lệnh. Nếu 5 file liên tiếp lỗi, script dừng để kiểm tra Ollama/STT. Không mở và lưu CSV trong Excel khi script đang ghi vào nó. Nếu không dùng `--resume`, script giữ hành vi cũ: tạo CSV có tên thời gian khi output đã tồn tại.
+Lệnh không tham số mặc định đọc `data/recordings_import/audio/` (tính từ thư mục project), ghi `data/recordings_import/ground_truth_review_713.csv`, kiểm tra đủ 713 WAV và bật `--resume`. Nếu chọn `--audio-dir` khác, script không ép số lượng 713; có thể truyền `--expected-count` theo lô đó. Lỗi từng file được ghi vào `ground_truth_review_713_error_log.csv`; file thiếu dòng thành công sẽ được thử lại khi chạy lại cùng lệnh. Nếu 5 file liên tiếp lỗi, script dừng để kiểm tra Ollama/STT. Không mở và lưu CSV trong Excel khi script đang ghi vào nó. Dùng `--no-resume` nếu muốn tạo CSV mới có tên thời gian khi output đã tồn tại.
