@@ -20,9 +20,9 @@ COMPANY_NAME_PATTERNS: Dict[str, str] = {
     r"\bfốc\s*con\b": "Foxconn",
     r"\bhồng\s+hải\s+foxconn\b": "Foxconn",
 
-    # Luxshare
-    r"\blắc\s*se\b": "Luxshare",
-    r"\blắc\s*xe\b": "Luxshare",
+    # Luxshare: các biến thể PhoWhisper đã ghi trong bộ audio review
+    r"\blắc\s*(?:se|xe|xê|xé|xế)\b": "Luxshare",
+    r"\b(?:lác|lạc|lát)\s*xe\b": "Luxshare",
     r"\blúc\s*se\b": "Luxshare",
     r"\blux\s*se\b": "Luxshare",
 
