@@ -1,6 +1,7 @@
 import sys
 import asyncio
 import csv
+import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -10,21 +11,28 @@ sys.path.append(str(Path(__file__).parent.parent))
 from app.services.audio_service import transcribe_audio
 from app.services.llm_service import llm_service
 
-async def main():
-    data_dir = Path("data")
-    wav_files = sorted(list(data_dir.glob("*.wav")))
-    if not wav_files:
+async def main(
+    audio_dir: Path = Path("data"),
+    output_csv: Path = Path("data/ground_truth_review.csv"),
+    limit: int = 0,
+):
+    wav_files = sorted(audio_dir.glob("*.wav"))
+    if not wav_files and audio_dir == Path("data"):
         # Fallback tìm các file .wav ở thư mục gốc
-        wav_files = sorted(list(Path(".").glob("*.wav")))
+        wav_files = sorted(Path(".").glob("*.wav"))
     
     if not wav_files:
-        print("Không tìm thấy file .wav nào trong thư mục data/ hoặc thư mục dự án.")
+        print(f"Không tìm thấy file .wav nào trong {audio_dir}.")
         return
 
-    data_dir.mkdir(exist_ok=True)
-    output_csv = data_dir / "ground_truth_review.csv"
+    if limit > 0:
+        wav_files = wav_files[:limit]
+
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
     if output_csv.exists():
-        output_csv = data_dir / f"ground_truth_review_{datetime.now():%Y%m%d_%H%M%S}.csv"
+        output_csv = output_csv.with_name(
+            f"{output_csv.stem}_{datetime.now():%Y%m%d_%H%M%S}{output_csv.suffix}"
+        )
     print(f"[*] Bắt đầu quy trình Auto-Labeling cho {len(wav_files)} files...")
     
     with open(output_csv, mode='x', encoding='utf-8-sig', newline='') as f:
@@ -77,4 +85,11 @@ async def main():
     print(f"\n[+] HOÀN TẤT! File review được lưu tại: {output_csv}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="Chạy STT và LLM để tạo CSV cho người gán nhãn kiểm tra")
+    parser.add_argument("--audio-dir", type=Path, default=Path("data"), help="Thư mục chứa các file .wav")
+    parser.add_argument("--output", type=Path, default=Path("data/ground_truth_review.csv"), help="CSV kết quả")
+    parser.add_argument("--limit", type=int, default=0, help="Số file đầu tiên cần xử lý; 0 là tất cả")
+    args = parser.parse_args()
+    if args.limit < 0:
+        parser.error("--limit phải lớn hơn hoặc bằng 0")
+    asyncio.run(main(args.audio_dir, args.output, args.limit))

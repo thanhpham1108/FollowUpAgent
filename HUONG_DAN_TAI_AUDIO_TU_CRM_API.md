@@ -241,3 +241,26 @@ find "$WORK_DIR/audio" -maxdepth 1 -type f -name '*.part'
 ```
 
 Số WAV nên bằng số mã duy nhất đã chọn. Nếu thiếu, xem các dòng `Lỗi`, kiểm tra `.part`, rồi chạy lại vòng lặp. Nếu mục tiêu là **100 audio mới**, hãy xác định chính xác chúng nằm ở trang nào hoặc dùng bộ lọc được API hỗ trợ trước khi tải; tổng 713 mã có thể gồm nhiều lô.
+
+## 8. Chạy AI để tạo file gán nhãn cần kiểm tra
+
+Script gán nhãn dùng PhoWhisper để chuyển audio thành `Transcript_Cleaned`, rồi dùng LLM để dự đoán `AI_Reason_Code`, `AI_Status_Group`, `AI_Call_Decision`, ngày hẹn, tóm tắt và tin nhắn. Nó in tiến độ từng file lên terminal và ghi từng dòng vào CSV ngay khi xong. `AI_...` là **dự đoán**, không phải ground truth do người xác nhận. Hai cột `Human_... (Điền tay)` để người nghe lại và ghi nhãn chuẩn. Script này không chạy rule engine hay gửi kết quả sang CRM.
+
+Audio mới nằm ở `data/recordings_import/audio/`, không phải ngay trong `data/`. Để thử 5 file trước:
+
+```bash
+python scripts/auto_label_ground_truth.py \
+  --audio-dir data/recordings_import/audio \
+  --output data/recordings_import/review_sample.csv \
+  --limit 5
+```
+
+Sau khi xem transcript và các mã AI trên mẫu, chạy toàn bộ:
+
+```bash
+python scripts/auto_label_ground_truth.py \
+  --audio-dir data/recordings_import/audio \
+  --output data/recordings_import/ground_truth_review.csv
+```
+
+Nếu tên CSV đã tồn tại, script thêm thời gian vào tên để không ghi đè nhãn cũ. Chạy lại sẽ tạo CSV mới, nên giữ terminal ổn định trong lúc xử lý cả lô. Những file tải lỗi hoặc chưa tải sẽ không có `.wav` để gán nhãn; kiểm tra `failed_call_ids.txt` và số WAV trước khi bắt đầu.
