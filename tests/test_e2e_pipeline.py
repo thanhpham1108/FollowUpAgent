@@ -24,8 +24,7 @@ async def test_e2e_pipeline_success():
         summary="Ứng viên giao tiếp tốt, mong muốn mức lương 15tr.",
         status_group=4,
         reason_code="HEN_PHONG_VAN",
-        appointment_date="2026-08-20T09:00:00",
-        recommended_message="Chào bạn, mời bạn đến phỏng vấn lúc 9h ngày 20/08."
+        appointment_date="2026-08-20",
     )
 
     with patch("app.api.v1.endpoints.analyze.speech_to_text", new_callable=AsyncMock) as mock_stt, \

@@ -19,8 +19,8 @@ def analysis_result():
         reason_code="KHACH_BAN",
         call_decision="CALL_BACK",
         appointment_date=None,
+        follow_up_days=None,
         summary="Ứng viên đang bận và hẹn gọi lại.",
-        recommended_message="Em sẽ gọi lại sau.",
     )
 
 
@@ -48,7 +48,7 @@ class AutoLabelTests(unittest.TestCase):
             def transcribe(path):
                 return {"text": path.stem}
 
-            async def fail_second(transcript, contact_name):
+            async def fail_second(transcript, contact_name, **kwargs):
                 if transcript == "2":
                     raise RuntimeError("Ollama unavailable")
                 return analysis_result()
@@ -70,7 +70,7 @@ class AutoLabelTests(unittest.TestCase):
 
             called = []
 
-            async def succeed(transcript, contact_name):
+            async def succeed(transcript, contact_name, **kwargs):
                 called.append(transcript)
                 return analysis_result()
 
@@ -105,7 +105,7 @@ class AutoLabelTests(unittest.TestCase):
             output = root / "review.csv"
             calls = []
 
-            async def failing_model(transcript, contact_name):
+            async def failing_model(transcript, contact_name, **kwargs):
                 calls.append(transcript)
                 raise RuntimeError("Ollama unavailable")
 

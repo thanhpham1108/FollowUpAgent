@@ -45,7 +45,6 @@ async def get_task_status(task_id: str):
             contact_name=record.contact_name,
             summary=record.summary,
             intent=record.intent,
-            recommended_message=record.recommended_message,
             error_message=record.error_message,
             created_at=record.created_at
         )

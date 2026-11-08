@@ -11,8 +11,10 @@ from pathlib import Path
 # Resolve paths from this script so the command works from any working directory.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
+from app.services.llm_service import ClassificationNeedsReview
+
 DEFAULT_AUDIO_DIR = PROJECT_ROOT / "data/recordings_import/audio"
-DEFAULT_OUTPUT_CSV = PROJECT_ROOT / "data/recordings_import/ground_truth_review_713.csv"
+DEFAULT_OUTPUT_CSV = PROJECT_ROOT / "data/recordings_import/ground_truth_review_713_v2.csv"
 DEFAULT_EXPECTED_COUNT = 713
 
 COLUMNS = [
@@ -22,8 +24,8 @@ COLUMNS = [
     "AI_Reason_Code",
     "AI_Call_Decision",
     "AI_Appointment_Date",
+    "AI_Follow_Up_Days",
     "AI_Summary",
-    "AI_Recommended_Message",
     "Human_Status_Group (Điền tay)",
     "Human_Reason_Code (Điền tay)",
 ]
@@ -128,8 +130,14 @@ async def main(
                 continue
             print(f"[{index}/{len(wav_files)}] Đang phân tích: {wav_file.name}", flush=True)
             try:
-                transcript = transcribe_fn(wav_file)["text"].strip()
-                analysis = await analyze_fn(transcript, contact_name="Ứng viên")
+                stt_result = transcribe_fn(wav_file)
+                transcript = stt_result["text"].strip()
+                analysis = await analyze_fn(
+                    transcript,
+                    contact_name="Ứng viên",
+                    audio_duration_seconds=stt_result.get("duration_seconds"),
+                    speaker_mode=stt_result.get("speaker_mode", "mixed"),
+                )
                 writer.writerow([
                     wav_file.name,
                     transcript,
@@ -137,8 +145,8 @@ async def main(
                     analysis.reason_code,
                     analysis.call_decision,
                     analysis.appointment_date,
+                    analysis.follow_up_days,
                     analysis.summary,
-                    analysis.recommended_message,
                     "",
                     "",
                 ])
@@ -151,6 +159,11 @@ async def main(
                     flush=True,
                 )
                 print(f"   -> Summary: {analysis.summary[:100]}...", flush=True)
+            except ClassificationNeedsReview as exc:
+                failures += 1
+                consecutive_errors = 0
+                log_error(error_csv, wav_file.name, exc)
+                print(f"   -> CẦN NGHE LẠI: {exc}", file=sys.stderr, flush=True)
             except Exception as exc:
                 failures += 1
                 consecutive_errors += 1
@@ -158,7 +171,7 @@ async def main(
                 if resume:
                     log_error(error_csv, wav_file.name, exc)
                 else:
-                    writer.writerow([wav_file.name, f"Lỗi: {exc}", "", "", "", "", "", "", "", ""])
+                    writer.writerow([wav_file.name, f"Lỗi: {exc}"] + [""] * (len(COLUMNS) - 2))
                     handle.flush()
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                     print(f"Dừng sau {MAX_CONSECUTIVE_ERRORS} lỗi liên tiếp; kiểm tra Ollama/STT rồi chạy lại.", file=sys.stderr)

@@ -1,6 +1,6 @@
 import logging
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.models import CallRecord, FollowUpTask, AuditLog, FollowUpStatus
 from app.schemas.response import AnalysisResult
@@ -37,21 +37,22 @@ class RuleEngineService:
                 action_desc = f"Gán Rule Nhóm 2 ({reason_code}): Gián đoạn kết nối, nhắc HR gọi lại sau 15 phút"
 
         elif status_group == 3:
-            # Nhóm 3: Tiềm năng / Chăm sóc (SUY_NGHI_THEM, CHUA_CHOT_NGAY, CHO_GIAY_TO, HEN_XA)
-            scheduled_at = now + timedelta(days=3)
-            action_desc = f"Gán Rule Nhóm 3 ({reason_code}): Ứng viên tiềm năng, nhắc gửi Zalo/chăm sóc sau 3 ngày"
+            # HEN_XA follows the agreed interval; other potential candidates get 3 days.
+            days = (analysis.follow_up_days or 7) if reason_code == "HEN_XA" else 3
+            scheduled_at = now + timedelta(days=days)
+            action_desc = f"Gán Rule Nhóm 3 ({reason_code}): HR liên hệ lại sau {days} ngày"
 
         elif status_group == 4:
             # Nhóm 4: Đã có lịch phỏng vấn (HEN_PHONG_VAN)
             if analysis.appointment_date:
                 try:
-                    # Lịch hẹn không có offset được hiểu theo giờ Việt Nam; DB lưu UTC không kèm timezone.
-                    appt_date = datetime.fromisoformat(analysis.appointment_date.replace("Z", "+00:00"))
-                    if appt_date.tzinfo is None:
-                        appt_date = appt_date.replace(tzinfo=timezone(timedelta(hours=7)))
-                    appt_date = appt_date.astimezone(timezone.utc).replace(tzinfo=None)
-                    # Lên lịch nhắc nhở 1 ngày trước lịch hẹn.
-                    scheduled_at = appt_date - timedelta(days=1)
+                    # Date-only appointment: remind HR at 09:00 Vietnam time the previous day.
+                    appt_day = date.fromisoformat(analysis.appointment_date)
+                    reminder_local = datetime.combine(
+                        appt_day - timedelta(days=1), time(9, 0),
+                        tzinfo=timezone(timedelta(hours=7))
+                    )
+                    scheduled_at = reminder_local.astimezone(timezone.utc).replace(tzinfo=None)
                     if scheduled_at < now:
                         scheduled_at = now + timedelta(hours=1)
                     action_desc = f"Gán Rule Nhóm 4: Nhắc nhở trước ngày hẹn phỏng vấn ({analysis.appointment_date})"
@@ -78,7 +79,7 @@ class RuleEngineService:
                 day_offset=(scheduled_at - now).days,
                 scheduled_at=scheduled_at,
                 channel="zalo",
-                message_content=analysis.recommended_message,
+                message_content=None,
                 status=FollowUpStatus.SCHEDULED,
                 is_enabled=True
             )

@@ -4,7 +4,10 @@
 # -------------------------------------------------------
 import logging
 import json
+import re
+import unicodedata
 import httpx
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from app.core.config import settings
@@ -15,29 +18,121 @@ from app.prompts.analysis_prompts import HR_ANALYSIS_TEMPLATE
 from app.prompts.system_prompts import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
+VIETNAM_TZ = timezone(timedelta(hours=7), name="Asia/Ho_Chi_Minh")
+_WEEKDAYS_VI = ("thứ Hai", "thứ Ba", "thứ Tư", "thứ Năm", "thứ Sáu", "thứ Bảy", "Chủ Nhật")
+
+
+class ClassificationNeedsReview(LLMProcessingError):
+    """Không đủ bằng chứng để tự động chốt reason code."""
+
+
+_REFUSAL_PATTERNS = (
+    r"\bkhong co nhu cau\b",
+    r"\bkhong quan tam\b",
+    r"\bkhong muon (?:nhan viec|di lam|lam viec)\b",
+    r"\bkhong dong y (?:nhan viec|di lam)\b",
+    r"\bkhong (?:nhan viec|di lam|lam viec)\b",
+    r"\bthoi (?:khong di|khong lam)\b",
+    r"\bdung goi (?:nua|lai)\b",
+    r"\btu choi (?:cong viec|loi moi|di lam)\b",
+)
+_EMPLOYED_PATTERNS = (r"\bdang di lam\b", r"\bdi lam roi\b", r"\bda co viec\b", r"\bdang lam\b")
+_DISENGAGED_PATTERNS = (r"\b(?:cup may|ngat may|ket thuc cuoc goi)\b", r"\bkhong muon trao doi tiep\b")
+_INTEREST_PATTERNS = (
+    r"\b(?:ung vien|anh|chi) hoi (?:ve|them)\b",
+    r"\b(?:ung vien|anh|chi) muon tim hieu\b",
+    r"\b(?:ung vien|anh|chi) quan tam\b",
+    r"\bdong y ket ban\b",
+)
+_POSITIVE_PATTERNS = (
+    r"\bdong y (?:nhan viec|di lam|den lam|den phong van)\b",
+    r"\bxac nhan (?:di lam|nhan viec)\b",
+    r"\bsan sang (?:di lam|nhan viec)\b",
+    r"\bchot (?:lich phong van|ngay di lam|di lam)\b",
+    r"\bhen phong van\b",
+    r"\bmai (?:anh|em|minh) ra\b",
+)
+
+
+def _plain_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value or "").casefold().replace("đ", "d")
+    letters = "".join(c for c in normalized if not unicodedata.combining(c))
+    return re.sub(r"[^\w]+", " ", letters).strip()
+
+
+def _candidate_quote_is_supported(quote: str, transcript: str) -> bool:
+    quote_text = _plain_text(quote).strip()
+    if not quote_text:
+        return False
+    lines = transcript.splitlines()
+    labeled = any("Ứng viên:" in line for line in lines)
+    source = " ".join(line.split("Ứng viên:", 1)[1] for line in lines if "Ứng viên:" in line) if labeled else transcript
+    return quote_text in _plain_text(source)
+
+
+def _needs_refusal_recheck(parsed: dict, transcript: str) -> bool:
+    if parsed.get("reason_code") != ReasonCode.TU_CHOI_LUON.value:
+        return False
+    summary = _plain_text(parsed.get("summary", ""))
+    quote = parsed.get("candidate_evidence") or ""
+    quote_text = _plain_text(quote)
+    positive_summary = any(
+        not re.search(r"\b(?:khong|chua)\s+$", summary[max(0, match.start() - 12):match.start()])
+        for pattern in _POSITIVE_PATTERNS
+        for match in re.finditer(pattern, summary)
+    )
+    if positive_summary or not _candidate_quote_is_supported(quote, transcript):
+        return True
+    if parsed.get("refusal_basis") == "employed_disengaged":
+        return (
+            not any(re.search(pattern, quote_text) for pattern in _EMPLOYED_PATTERNS)
+            or not any(re.search(pattern, summary) for pattern in _DISENGAGED_PATTERNS)
+            or any(re.search(pattern, summary) for pattern in _INTEREST_PATTERNS)
+        )
+    if parsed.get("refusal_basis") == "explicit_job_refusal":
+        return not any(re.search(pattern, quote_text) for pattern in _REFUSAL_PATTERNS)
+    return True
+
+
+def _appointment_date(parsed: dict, reason_code: ReasonCode) -> str | None:
+    if reason_code != ReasonCode.HEN_PHONG_VAN:
+        return None
+    value = parsed.get("appointment_date")
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10]).isoformat()
+    except ValueError as exc:
+        raise LLMProcessingError(f"appointment_date không hợp lệ: {value!r}") from exc
+
+
+def _follow_up_days(parsed: dict, reason_code: ReasonCode) -> int | None:
+    if reason_code != ReasonCode.HEN_XA:
+        return None
+    value = parsed.get("follow_up_days")
+    if value is None:
+        return 7
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 365:
+        raise LLMProcessingError(f"follow_up_days không hợp lệ: {value!r}")
+    return value
 
 _ANALYSIS_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
         "summary": {"type": "string"},
-        "status_group": {"type": "integer", "enum": [1, 2, 3, 4, 5]},
         "reason_code": {"type": "string", "enum": [code.value for code in ReasonCode]},
-        "call_decision": {
-            "type": "string",
-            "enum": list(dict.fromkeys(GROUP_CALL_DECISION.values())),
-        },
         "appointment_date": {"type": ["string", "null"]},
-        "recommended_message": {"type": "string"},
-        "thinking": {"type": "string"},
+        "follow_up_days": {"type": ["integer", "null"]},
+        "candidate_evidence": {"type": "string"},
+        "refusal_basis": {"type": "string", "enum": ["none", "explicit_job_refusal", "employed_disengaged"]},
     },
     "required": [
         "summary",
-        "status_group",
         "reason_code",
-        "call_decision",
         "appointment_date",
-        "recommended_message",
-        "thinking",
+        "follow_up_days",
+        "candidate_evidence",
+        "refusal_basis",
     ],
     "additionalProperties": False,
 }
@@ -105,7 +200,37 @@ class LLMService:
         logger.error(f"Không thể bóc tách JSON từ response của LLM. Text gốc: {text[:300]}")
         return {}
 
-    async def analyze_audio(self, transcript: str, contact_name: str, context_type: str = "hr") -> AnalysisResult:
+    async def _request_analysis(self, client: httpx.AsyncClient, payload: dict) -> dict:
+        endpoint = f"{settings.OLLAMA_API_BASE_URL}/chat/completions"
+        response = await client.post(endpoint, json=payload)
+        for response_format in ({"type": "json_object"}, None):
+            if response.status_code not in (400, 422) or not any(
+                marker in response.text.lower()
+                for marker in ("json_schema", "json schema", "response_format", "response format")
+            ):
+                break
+            fallback_payload = dict(payload)
+            if response_format is None:
+                fallback_payload.pop("response_format", None)
+                logger.warning("Ollama không hỗ trợ JSON mode; thử lại bằng prompt JSON thuần.")
+            else:
+                fallback_payload["response_format"] = response_format
+                logger.warning("Ollama không hỗ trợ JSON Schema; thử lại bằng JSON mode.")
+            response = await client.post(endpoint, json=fallback_payload)
+        response.raise_for_status()
+        raw_text = response.json()["choices"][0]["message"]["content"]
+        return self._safe_parse_json(raw_text)
+
+    async def analyze_audio(
+        self,
+        transcript: str,
+        contact_name: str,
+        context_type: str = "hr",
+        *,
+        reference_datetime: datetime | None = None,
+        audio_duration_seconds: float | None = None,
+        speaker_mode: str = "mixed",
+    ) -> AnalysisResult:
         """
         Xử lý phân tích dữ liệu bằng cách gửi HTTP Request tới Ollama
         """
@@ -113,7 +238,25 @@ class LLMService:
             raise LLMProcessingError(f"Chưa có bộ reason_code cho context_type={context_type!r}")
 
         try:
-            prompt = HR_ANALYSIS_TEMPLATE.format(contact_name=contact_name, context_data=transcript)
+            if reference_datetime is not None and reference_datetime.tzinfo is None:
+                raise ValueError("reference_datetime phải có múi giờ")
+            now_vn = (reference_datetime or datetime.now(VIETNAM_TZ)).astimezone(VIETNAM_TZ)
+            today = now_vn.date()
+            next_monday = today + timedelta(days=7 - today.weekday())
+            prompt = HR_ANALYSIS_TEMPLATE.format(
+                contact_name=contact_name,
+                context_data=transcript,
+                current_date=today.isoformat(),
+                current_weekday=_WEEKDAYS_VI[today.weekday()],
+                tomorrow_date=(today + timedelta(days=1)).isoformat(),
+                day_after_tomorrow=(today + timedelta(days=2)).isoformat(),
+                next_monday_date=next_monday.isoformat(),
+                monday_after_next_date=(next_monday + timedelta(days=7)).isoformat(),
+                audio_duration_seconds=(
+                    f"{audio_duration_seconds:.1f}" if audio_duration_seconds is not None else "không rõ"
+                ),
+                speaker_mode=speaker_mode,
+            )
 
             logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name} qua Ollama...")
             
@@ -133,35 +276,48 @@ class LLMService:
                     },
                 },
                 "temperature": 0.0,  # Tối thiểu sáng tạo -> JSON phải chuẩn xác
-                "max_tokens": 1500   # Tăng lên để có đủ chỗ cho chain-of-thought
+                "max_tokens": 1100
             }
 
             # Gửi HTTP Request bất đồng bộ (Tăng timeout lên 300s để phòng hờ Ollama load model lần đầu quá lâu)
             async with httpx.AsyncClient(timeout=300.0) as client:
-                response = await client.post(
-                    f"{settings.OLLAMA_API_BASE_URL}/chat/completions",
-                    json=payload
-                )
-                if response.status_code in (400, 422) and any(
-                    marker in response.text.lower()
-                    for marker in ("json_schema", "json schema", "response_format", "response format")
-                ):
-                    logger.warning("Ollama không hỗ trợ JSON Schema; thử lại bằng JSON mode.")
-                    payload.pop("response_format")
-                    payload["format"] = "json"
-                    response = await client.post(
-                        f"{settings.OLLAMA_API_BASE_URL}/chat/completions",
-                        json=payload
-                    )
-                response.raise_for_status()
-                data = response.json()
-            
-            # Lấy kết quả từ Ollama và loại bỏ trường 'thinking' trước khi ép kiểu
-            raw_text = data["choices"][0]["message"]["content"]
-            parsed_data = self._safe_parse_json(raw_text)
-            parsed_data.pop("thinking", None)
+                parsed_data = await self._request_analysis(client, payload)
+                if _needs_refusal_recheck(parsed_data, transcript):
+                    logger.warning("TU_CHOI_LUON thiếu bằng chứng hoặc mâu thuẫn summary; phân loại lại một lần.")
+                    retry_payload = {
+                        **payload,
+                        "messages": [
+                            *payload["messages"],
+                            {
+                                "role": "user",
+                                "content": (
+                                    "Kiểm tra lại kết luận trước khi trả JSON. Kết quả trước chọn "
+                                    "TU_CHOI_LUON nhưng thiếu câu nói của ứng viên hoặc summary "
+                                    "có dấu hiệu tích cực. Trích đúng câu nói của ỨNG VIÊN vào "
+                                    "candidate_evidence; chỉ giữ TU_CHOI_LUON khi từ chối CÔNG VIỆC "
+                                    "hoặc đang làm nơi khác và chủ động kết thúc trao đổi. "
+                                    "Nếu còn quan tâm khi đang đi làm nơi khác: DANG_DI_LAM. "
+                                    "Nếu sẵn sàng đi làm: DI_LAM. Nếu lưỡng lự: SUY_NGHI_THEM. "
+                                    "Phân tích lại toàn bộ transcript và trả JSON đúng schema."
+                                ),
+                            },
+                        ],
+                    }
+                    parsed_data = await self._request_analysis(client, retry_payload)
+                    if _needs_refusal_recheck(parsed_data, transcript):
+                        raise ClassificationNeedsReview(
+                            "Không đủ bằng chứng để đóng hồ sơ bằng TU_CHOI_LUON; "
+                            "cần người nghe kiểm tra audio."
+                        )
 
+            # Chỉ suy ra hành động sau khi phân loại vượt qua kiểm tra từ chối.
             reason_code = ReasonCode(parsed_data["reason_code"])
+            if reason_code == ReasonCode.KNM_DAP_MAY and (
+                audio_duration_seconds is None or audio_duration_seconds >= 15
+            ):
+                raise ClassificationNeedsReview(
+                    "KNM_DAP_MAY chỉ dùng khi audio dưới 15 giây và ứng viên chủ động cúp máy."
+                )
             status_group = REASON_CODE_GROUP[reason_code]
             call_decision = GROUP_CALL_DECISION[status_group]
 
@@ -170,22 +326,19 @@ class LLMService:
                 status_group=status_group,
                 reason_code=reason_code,
                 call_decision=call_decision,
-                appointment_date=parsed_data.get("appointment_date"),
-                recommended_message=parsed_data.get("recommended_message") or ""
+                appointment_date=_appointment_date(parsed_data, reason_code),
+                follow_up_days=_follow_up_days(parsed_data, reason_code),
             )
 
         except httpx.RequestError as e:
             logger.error(f"Lỗi kết nối tới Ollama: {e}")
             raise LLMProcessingError(f"Không thể kết nối tới Ollama API: {e}")
+        except LLMProcessingError:
+            raise
         except Exception as e:
             import traceback
             logger.error(f"Xử lý LLM thất bại cho đối tượng {contact_name}: {e}")
             logger.error(f"Chi tiết lỗi:\n{traceback.format_exc()}")
-            # Log thêm raw_text nếu có thể (dùng biến cục bộ nếu đã được gán)
-            try:
-                logger.error(f"RAW TEXT từ LLM: {raw_text}")
-            except Exception:
-                pass
             raise LLMProcessingError(f"Quá trình phân tích dữ liệu hội thoại gặp sự cố cục bộ: {e}")
 
 

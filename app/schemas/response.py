@@ -4,7 +4,7 @@
 # -------------------------------------------------------
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import model_validator
 from app.core.classification import CallDecision, GROUP_CALL_DECISION, REASON_CODE_GROUP, ReasonCode
 
@@ -31,7 +31,6 @@ class TaskStatusResponse(BaseModel):
     contact_name: Optional[str] = Field(None, description="Tên liên hệ / ứng viên")
     summary: Optional[str] = Field(None, description="Tóm tắt cuộc gọi (chỉ có khi completed)")
     intent: Optional[str] = Field(None, description="Mã phân loại ý định (reason_code)")
-    recommended_message: Optional[str] = Field(None, description="Tin nhắn gợi ý follow-up")
     error_message: Optional[str] = Field(None, description="Thông báo lỗi (chỉ có khi failed)")
     created_at: Optional[datetime] = Field(None, description="Thời điểm tạo task")
 
@@ -43,14 +42,22 @@ class AnalysisResult(BaseModel):
     status_group: int = Field(..., description="Thuộc nhóm trạng thái nào (1 đến 5)")
     reason_code: ReasonCode = Field(..., description="Mã lý do phải thuộc danh sách nghiệp vụ đã định nghĩa")
     call_decision: CallDecision = Field(CallDecision.NO_CALL, description="Hành động được suy ra từ reason_code")
-    appointment_date: Optional[str] = Field(None, description="Ngày hẹn thực tế nếu thuộc Nhóm 4")
-    recommended_message: str = Field(..., description="Tin nhắn follow-up gợi ý cho kênh tương tác")
+    appointment_date: Optional[str] = Field(None, description="Ngày phỏng vấn YYYY-MM-DD, chỉ cho Nhóm 4")
+    follow_up_days: Optional[int] = Field(None, description="Số ngày chờ khi ứng viên hẹn liên hệ xa")
 
     @model_validator(mode="after")
     def derive_group_and_decision(self):
         group = REASON_CODE_GROUP[self.reason_code]
         self.status_group = group
         self.call_decision = CallDecision(GROUP_CALL_DECISION[group])
+        if self.reason_code != ReasonCode.HEN_PHONG_VAN:
+            self.appointment_date = None
+        elif self.appointment_date:
+            date.fromisoformat(self.appointment_date)
+        if self.reason_code != ReasonCode.HEN_XA:
+            self.follow_up_days = None
+        elif self.follow_up_days is None:
+            self.follow_up_days = 7
         return self
 
 

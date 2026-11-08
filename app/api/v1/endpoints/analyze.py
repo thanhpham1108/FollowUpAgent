@@ -57,7 +57,10 @@ async def process_candidate_audio(task_id: str, request: CandidateAnalyzeRequest
 
             # 2. Download & STT (Audio Service)
             logger.info(f"[Task {task_id}] Đang tải và dịch audio từ: {request.audio_url}")
-            transcript = await speech_to_text(str(request.audio_url), task_id)
+            stt_result = await speech_to_text(str(request.audio_url), task_id, return_metadata=True)
+            transcript = stt_result["text"] if isinstance(stt_result, dict) else stt_result
+            duration_seconds = stt_result.get("duration_seconds") if isinstance(stt_result, dict) else None
+            speaker_mode = stt_result.get("speaker_mode", "mixed") if isinstance(stt_result, dict) else "mixed"
 
             record.transcript = transcript
             await db.commit()
@@ -67,11 +70,12 @@ async def process_candidate_audio(task_id: str, request: CandidateAnalyzeRequest
             analysis_result = await llm_service.analyze_audio(
                 transcript=transcript,
                 contact_name=request.candidate_name,
-                context_type="hr"
+                context_type="hr",
+                audio_duration_seconds=duration_seconds,
+                speaker_mode=speaker_mode,
             )
 
             record.summary = analysis_result.summary
-            record.recommended_message = analysis_result.recommended_message
             record.intent = analysis_result.reason_code
             record.status = CallStatus.COMPLETED
             # Wire các field còn thiếu từ kết quả LLM

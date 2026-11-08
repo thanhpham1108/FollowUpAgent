@@ -4,8 +4,11 @@ import httpx
 from transformers import pipeline
 import torch
 import logging
+import tempfile
+import wave
 from pathlib import Path
 from app.core.config import settings
+from app.services.speaker_transcript import merge_channel_transcripts, split_conversation_channels
 
 # Giả định các Exception này được định nghĩa trong app/core/exceptions.py
 # Nếu chưa có, bạn có thể tự tạo exception class kế thừa từ Exception
@@ -122,7 +125,7 @@ async def download_audio(audio_url: str, task_id: str) -> Path:
                             if dest_file_path.exists():
                                 dest_file_path.unlink()
                             raise AudioValidationError(f"File tải về thực tế vượt quá giới hạn dung lượng ({settings.MAX_AUDIO_SIZE_MB}MB)")
-                        
+
                         f.write(edit_iterator)
 
         logger.info(f"Đã tải thành công audio về: {dest_file_path}")
@@ -147,21 +150,46 @@ def transcribe_audio(file_path: Path) -> dict:
     str_path = str(file_path.resolve())
     logger.info(f"Đang tiến hành nhận diện (STT): {str_path}")
 
-    result = model(
-        str_path,
-        generate_kwargs={
-            "no_repeat_ngram_size": 3,
-            "repetition_penalty": 1.1
+    try:
+        with wave.open(str_path, "rb") as wav:
+            duration_seconds = wav.getnframes() / wav.getframerate()
+    except (OSError, wave.Error):
+        duration_seconds = None
+
+    def run_asr(path: Path) -> dict:
+        result = model(
+            str(path),
+            generate_kwargs={"no_repeat_ngram_size": 3, "repetition_penalty": 1.1}
+        )
+        return {
+            "text": normalize_transcript(result.get("text", "").strip()),
+            "chunks": [
+                {**chunk, "text": normalize_transcript((chunk.get("text") or "").strip())}
+                for chunk in result.get("chunks", [])
+            ],
         }
-    )
 
-    raw_text = result.get("text", "").strip()
-    clean_text = normalize_transcript(raw_text)
+    with tempfile.TemporaryDirectory(prefix="call_channels_") as temp_dir:
+        channels = split_conversation_channels(file_path, Path(temp_dir))
+        if channels:
+            channel_results = tuple(run_asr(path) for path in channels)
+            dialogue, speaker_mode = merge_channel_transcripts(channel_results)
+            if dialogue:
+                return {
+                    "text": dialogue,
+                    "language": "vi",
+                    "segments": [result["chunks"] for result in channel_results],
+                    "duration_seconds": duration_seconds,
+                    "speaker_mode": speaker_mode,
+                }
 
+    result = run_asr(file_path)
     return {
-        "text": clean_text,
-        "language": "vi",  # PhoWhisper chủ yếu hỗ trợ tiếng Việt
-        "segments": result.get("chunks", []),
+        "text": result["text"],
+        "language": "vi",
+        "segments": result["chunks"],
+        "duration_seconds": duration_seconds,
+        "speaker_mode": "mixed",
     }
 
 
@@ -170,7 +198,7 @@ def transcribe_audio(file_path: Path) -> dict:
 _stt_semaphore = asyncio.Semaphore(1)
 
 
-async def speech_to_text(audio_url: str, task_id: str) -> str:
+async def speech_to_text(audio_url: str, task_id: str, *, return_metadata: bool = False) -> str | dict:
     """
     Full pipeline: download audio → transcribe (non-blocking) → cleanup.
     Dùng asyncio.to_thread để chạy STT trong thread riêng, giải phóng event loop của FastAPI.
@@ -183,7 +211,7 @@ async def speech_to_text(audio_url: str, task_id: str) -> str:
         async with _stt_semaphore:
             logger.info(f"[Task {task_id}] Bắt đầu bóc băng STT...")
             result = await asyncio.to_thread(transcribe_audio, file_path)
-            return result["text"]
+            return result if return_metadata else result["text"]
     except Exception as e:
         logger.error(f"STT pipeline thất bại cho task {task_id} (URL: {audio_url}): {e}")
         raise

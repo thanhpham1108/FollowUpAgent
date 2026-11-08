@@ -23,11 +23,11 @@ JUDGE_USER_PROMPT_TEMPLATE = """Hãy đánh giá kết quả phân tích cuộc 
 ```
 
 ## HỆ THỐNG PHÂN LOẠI:
-- Nhóm 1: Chưa tư vấn được
-- Nhóm 2: Cần gọi lại (KNM_1=Cúp máy sớm, KNM_4=Từ chối thẳng, SUY_NGHI_THEM=Cần suy nghĩ, KHACH_BAN=Bận)
-- Nhóm 3: Ứng viên tiềm năng (CHUA_CHOT_NGAY, CHO_CCCD, HEN_XA)
-- Nhóm 4: Đã hẹn phỏng vấn (HEN_PHONG_VAN)
-- Nhóm 5: Đi làm ngay (DI_LAM)
+- Nhóm 1: Đóng hồ sơ (TU_CHOI_LUON, KNM_DAP_MAY, SAI_SO_NHAM_SO)
+- Nhóm 2: Cần gọi lại (KHACH_BAN, CUOC_GOI_RONG, LOI_AM_THANH)
+- Nhóm 3: Tiếp tục chăm sóc (SUY_NGHI_THEM, DANG_DI_LAM, CHO_GIAY_TO, HEN_XA)
+- Nhóm 4: Ứng viên đồng ý phỏng vấn, có thể chưa chốt ngày (HEN_PHONG_VAN)
+- Nhóm 5: Ứng viên sẵn sàng đi làm (DI_LAM)
 
 ## TIÊU CHÍ CHẤM ĐIỂM:
 
