@@ -165,6 +165,8 @@ _ANALYSIS_OUTPUT_SCHEMA = {
         "follow_up_days": {"type": ["integer", "null"]},
         "candidate_evidence": {"type": "string"},
         "refusal_basis": {"type": "string", "enum": ["none", "explicit_job_refusal", "stop_contact"]},
+        "summary_needs_review": {"type": "boolean"},
+        "summary_review_reason": {"type": "string"},
     },
     "required": [
         "summary",
@@ -173,6 +175,8 @@ _ANALYSIS_OUTPUT_SCHEMA = {
         "follow_up_days",
         "candidate_evidence",
         "refusal_basis",
+        "summary_needs_review",
+        "summary_review_reason",
     ],
     "additionalProperties": False,
 }
@@ -274,6 +278,12 @@ class LLMService:
                 "Ollama trả JSON không hợp lệ hoặc thiếu reason_code; "
                 "response có thể đã bị cắt giữa chừng."
             )
+        if not isinstance(parsed.get("summary_needs_review"), bool):
+            parsed["summary_needs_review"] = True
+            parsed["summary_review_reason"] = "Model không báo trạng thái kiểm tra summary."
+        elif not isinstance(parsed.get("summary_review_reason"), str):
+            parsed["summary_needs_review"] = True
+            parsed["summary_review_reason"] = "Model không nêu được lý do kiểm tra summary."
         return parsed
 
     async def analyze_audio(
@@ -411,6 +421,8 @@ class LLMService:
                             "follow_up_days": None,
                             "candidate_evidence": "",
                             "refusal_basis": "none",
+                            "summary_needs_review": True,
+                            "summary_review_reason": "Chưa xác minh được quyết định cuối của ứng viên.",
                         }
                     elif retry_success:
                         raise ClassificationNeedsReview(
@@ -427,6 +439,12 @@ class LLMService:
                 )
             status_group = REASON_CODE_GROUP[reason_code]
             call_decision = GROUP_CALL_DECISION[status_group]
+            summary_needs_review = parsed_data["summary_needs_review"]
+            if summary_needs_review and trace_callback is not None:
+                trace_callback({
+                    "event": "summary_review",
+                    "reason": parsed_data["summary_review_reason"] or "Thiếu dữ kiện cốt lõi để xác minh summary.",
+                })
             result = AnalysisResult(
                 summary=parsed_data.get("summary") or "Không có tóm tắt.",
                 status_group=status_group,
@@ -441,7 +459,7 @@ class LLMService:
                     "reason_code": result.reason_code.value,
                     "status_group": result.status_group,
                     "call_decision": result.call_decision.value,
-                    "requires_review": fell_back_to_follow_up,
+                    "requires_review": fell_back_to_follow_up or summary_needs_review,
                 })
             return result
 

@@ -175,6 +175,8 @@ def test_conditional_start_is_rechecked_as_interview_willingness():
             "follow_up_days": None,
             "candidate_evidence": "Có thể anh đi trước ngày 15",
             "refusal_basis": "none",
+            "summary_needs_review": False,
+            "summary_review_reason": "",
         },
         {
             "summary": "Ứng viên bận việc gia đình và không kịp xe thứ Hai. Anh nói 'Có thể anh đi trước ngày 15' nhưng chưa xác nhận ngày đi làm. HR đã tư vấn việc làm và hẹn gọi lại ngày 13 hoặc 14 để thống nhất. Hai bên đã có Zalo để trao đổi tiếp.",
@@ -183,6 +185,8 @@ def test_conditional_start_is_rechecked_as_interview_willingness():
             "follow_up_days": None,
             "candidate_evidence": "Có thể anh đi trước ngày 15",
             "refusal_basis": "none",
+            "summary_needs_review": False,
+            "summary_review_reason": "",
         },
     ]
 
@@ -240,6 +244,8 @@ def test_refusal_guard_keeps_ambiguous_retry_in_follow_up_with_review_flag():
         "follow_up_days": None,
         "candidate_evidence": "Anh đang đi làm rồi",
         "refusal_basis": "explicit_job_refusal",
+        "summary_needs_review": False,
+        "summary_review_reason": "",
     }
 
     class Response:
@@ -276,8 +282,9 @@ def test_refusal_guard_keeps_ambiguous_retry_in_follow_up_with_review_flag():
     assert result.call_decision.value == "FOLLOW_UP"
     assert "cần nghe lại" in result.summary.lower()
     assert "từ chối công việc" not in result.summary.lower()
-    assert trace[-2]["event"] == "fallback"
-    assert trace[-2]["requires_review"] is True
+    assert trace[-3]["event"] == "fallback"
+    assert trace[-3]["requires_review"] is True
+    assert trace[-2]["event"] == "summary_review"
     assert trace[-1]["outcome"] == "accepted"
     assert trace[-1]["requires_review"] is True
 
@@ -304,6 +311,53 @@ def test_truncated_model_json_is_reported_before_reason_guard():
         ))
     assert trace[0]["event"] == "model_response"
     assert trace[0]["parsed"] == {}
+
+
+def test_uncertain_summary_emits_review_event_without_changing_reason_code():
+    answer = {
+        "summary": "Ứng viên muốn trao đổi thêm về việc làm.",
+        "reason_code": "TRAO_DOI_THEM",
+        "appointment_date": None,
+        "follow_up_days": None,
+        "candidate_evidence": "Gửi em thông tin",
+        "refusal_basis": "none",
+        "summary_needs_review": True,
+        "summary_review_reason": "Không rõ người nói về nơi ở.",
+    }
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": json.dumps(answer)}}]}
+
+    class Client:
+        def __init__(self, timeout):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def post(self, url, json):
+            return Response()
+
+    trace = []
+    with patch.object(llm_module.httpx, "AsyncClient", Client):
+        result = asyncio.run(llm_module.llm_service.analyze_audio(
+            "Ứng viên: Gửi em thông tin", "Ứng viên", trace_callback=trace.append,
+        ))
+    assert result.reason_code == ReasonCode.TRAO_DOI_THEM
+    assert [event["event"] for event in trace] == [
+        "model_response", "guard", "summary_review", "final",
+    ]
+    assert trace[-1]["requires_review"] is True
 
 
 def test_ollama_schema_fallback_uses_openai_compatible_json_mode():

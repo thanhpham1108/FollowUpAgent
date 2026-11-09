@@ -149,6 +149,33 @@ class AutoLabelTests(unittest.TestCase):
             self.assertEqual(review_rows[0]["File_Name"], "1.wav")
             self.assertIn("Nhãn tạm", review_rows[0]["Error"])
 
+    def test_uncertain_summary_is_logged_even_when_reason_code_is_accepted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            audio_dir = root / "audio"
+            audio_dir.mkdir()
+            (audio_dir / "1.wav").write_bytes(b"audio")
+            output = root / "review.csv"
+
+            async def analyze(transcript, contact_name, **kwargs):
+                kwargs["trace_callback"]({
+                    "event": "summary_review",
+                    "reason": "Không rõ người nói về công ty cũ.",
+                })
+                return analysis_result()
+
+            assert asyncio.run(main(
+                audio_dir, output, expected_count=1,
+                transcribe_fn=lambda path: {"text": "Cuộc gọi tuyển dụng"},
+                analyze_fn=analyze,
+            )) == 0
+            with output.open(encoding="utf-8-sig", newline="") as handle:
+                self.assertEqual(len(list(csv.DictReader(handle))), 1)
+            with (root / "review_error_log.csv").open(encoding="utf-8-sig", newline="") as handle:
+                review_rows = list(csv.DictReader(handle))
+            self.assertEqual(review_rows[0]["File_Name"], "1.wav")
+            self.assertIn("Không rõ người nói", review_rows[0]["Error"])
+
     def test_expected_count_stops_before_loading_models_or_creating_csv(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

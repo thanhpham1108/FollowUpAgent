@@ -75,19 +75,37 @@ Trước khi chọn reason_code, tự kiểm tra theo thứ tự (không in các
    lại câu. Nếu không nghe rõ lời ứng viên thì để chuỗi rỗng. Với
    TU_CHOI_LUON, refusal_basis phải là explicit_job_refusal hoặc stop_contact;
    mọi mã khác là none.
-6. Summary 3-5 câu chỉ dựa trên transcript này: giữ bối cảnh, vướng mắc,
-   ý định sau cùng và việc HR cần làm. Gộp thông tin cá nhân vào 1-2 câu:
-   tên, tuổi hoặc năm sinh, quê và nơi ở hiện tại, học vấn, công việc đang
-   làm hoặc đã nghỉ, kinh nghiệm, giấy tờ và khả năng di chuyển nếu có nói rõ.
-   Ghi sức khoẻ hoặc hình xăm khi ứng viên thực sự đề cập và thông tin đó
-   ảnh hưởng việc ứng tuyển; không suy đoán tình trạng sức khoẻ hay hình xăm.
-   Ghi nơi ứng viên MUỐN làm theo tỉnh, khu công nghiệp hoặc công ty nếu rõ;
-   phân biệt với nơi đang hoặc từng làm. Không tự điền mục không được nhắc đến.
-   Ưu tiên quyết định cuối và bước HR cần làm khi phải rút gọn trong 5 câu.
-   Trích nguyên văn một câu quan trọng nếu nghe rõ. Ghi kênh Zalo/Facebook
-   đã đồng ý, thông tin HR tư vấn và số điện thoại nghe rõ; không đoán.
-   Không đưa chi tiết từ quy tắc vào summary. Nếu chỉ có lời hẹn gọi lại
-   của HR, không viết thành ngày phỏng vấn đã chốt.
+6. Summary là bản tóm tắt cuộc gọi tuyển dụng cho HR, thường 3-5 câu; nếu
+   cuộc gọi có nhiều dữ kiện rõ ràng thì dùng 6-8 câu. Chỉ ghi nội dung có
+   trong transcript. Gom các nội dung đã được nói rõ theo thứ tự:
+   (a) tên, năm sinh, quê và nơi ở hiện tại của ỨNG VIÊN; việc hiện tại, công
+   ty từng làm, loại hợp đồng cũ và tình trạng trên hệ thống/tái tuyển nếu có;
+   (b) tỉnh, khu công nghiệp, nhà máy ứng viên muốn đến, loại hợp đồng mới
+   (chính thức/thời vụ), lương cơ bản, phụ cấp và thưởng được hai bên trao đổi;
+   (c) điều kiện/vướng mắc: thể lực, thị lực, hình xăm, tóc nhuộm, học vấn,
+   khả năng tính toán, giấy tờ, tài khoản ngân hàng và Zalo nếu có đề cập;
+   (d) thái độ và quyết định cuối của ứng viên: muốn đi, còn cân nhắc, đang
+   sắp xếp, hay từ chối; nêu căn cứ trong lời nói/hành động, không đoán cảm xúc;
+   (e) phương tiện, mốc dự kiến xuống nhận việc/phỏng vấn, ai cần xác nhận
+   lịch và ứng viên cần hoàn thiện việc gì trước khi đi.
+   Không bắt buộc đủ mọi mục; bỏ mục vắng mặt để ưu tiên dữ kiện quan trọng.
+   Phân biệt điều HR tư vấn với yêu cầu/cam kết của ứng viên. Ghi mức lương
+   cơ bản, phụ cấp và thưởng đã trao đổi nếu transcript nói rõ khoản nào,
+   mức bao nhiêu và điều kiện nhận; nêu đó là thông tin HR tư vấn, không phải
+   khoản ứng viên chắc chắn sẽ được nhận. Không cộng các khoản thành thu nhập
+   chắc chắn hoặc biến đề xuất của HR thành lời đồng ý của ứng viên.
+   Không lấy tên Zalo, quê, tuổi, nghề của HR làm thông tin ứng viên; phân biệt
+   việc cũ đã kết thúc với việc đang làm và nơi muốn đến với nơi đang ở.
+   Trước khi trả JSON, tự đối chiếu từng tên, số, địa điểm, trạng thái, mốc
+   thời gian với transcript và đúng người nói; chi tiết không chắc thì bỏ.
+   Nếu thiếu ngày nhận việc/phỏng vấn, ghi rõ chưa chốt thay vì tự suy ra.
+   Nếu summary và reason_code mâu thuẫn, đọc lại transcript và chọn lại mã;
+   không sửa sự thật trong summary để khớp mã. Không chép lời quảng bá,
+   quy tắc hoặc tự điền dữ kiện còn thiếu.
+   Nếu transcript không đủ rõ để xác định quyết định cuối, nơi ứng tuyển,
+   điều kiện đáp ứng hoặc mốc quan trọng cho HR, đặt summary_needs_review=true
+   và ghi ngắn gọn điều cần nghe lại vào summary_review_reason. Chi tiết phụ
+   không chắc chỉ cần bỏ. Nếu đủ căn cứ thì false và để reason chuỗi rỗng.
 7. appointment_date chỉ chứa YYYY-MM-DD khi hai bên xác nhận NGÀY phỏng vấn;
    thiếu ngày hoặc chỉ có ngày HR đề xuất thì null. Không cần giờ.
    Các mã khác luôn có appointment_date=null. Ngày bắt đầu đi làm ghi trong summary.
@@ -98,11 +116,13 @@ Trước khi chọn reason_code, tự kiểm tra theo thứ tự (không in các
 
 Chỉ trả JSON thuần:
 {{
-  "summary": "3-5 câu tiếng Việt",
+  "summary": "3-8 câu tiếng Việt tuỳ nội dung",
   "reason_code": "một mã chính xác trong danh sách trên",
   "appointment_date": null,
   "follow_up_days": null,
   "candidate_evidence": "trích nguyên văn hoặc chuỗi rỗng",
-  "refusal_basis": "none"
+  "refusal_basis": "none",
+  "summary_needs_review": false,
+  "summary_review_reason": ""
 }}
 """
