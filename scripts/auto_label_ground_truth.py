@@ -136,7 +136,6 @@ async def main(
                     transcript,
                     contact_name="Ứng viên",
                     audio_duration_seconds=stt_result.get("duration_seconds"),
-                    speaker_mode=stt_result.get("speaker_mode", "mixed"),
                 )
                 writer.writerow([
                     wav_file.name,

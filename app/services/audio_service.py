@@ -4,11 +4,9 @@ import httpx
 from transformers import pipeline
 import torch
 import logging
-import tempfile
 import wave
 from pathlib import Path
 from app.core.config import settings
-from app.services.speaker_transcript import merge_channel_transcripts, split_conversation_channels
 
 # Giả định các Exception này được định nghĩa trong app/core/exceptions.py
 # Nếu chưa có, bạn có thể tự tạo exception class kế thừa từ Exception
@@ -156,40 +154,16 @@ def transcribe_audio(file_path: Path) -> dict:
     except (OSError, wave.Error):
         duration_seconds = None
 
-    def run_asr(path: Path) -> dict:
-        result = model(
-            str(path),
-            generate_kwargs={"no_repeat_ngram_size": 3, "repetition_penalty": 1.1}
-        )
-        return {
-            "text": normalize_transcript(result.get("text", "").strip()),
-            "chunks": [
-                {**chunk, "text": normalize_transcript((chunk.get("text") or "").strip())}
-                for chunk in result.get("chunks", [])
-            ],
-        }
-
-    with tempfile.TemporaryDirectory(prefix="call_channels_") as temp_dir:
-        channels = split_conversation_channels(file_path, Path(temp_dir))
-        if channels:
-            channel_results = tuple(run_asr(path) for path in channels)
-            dialogue, speaker_mode = merge_channel_transcripts(channel_results)
-            if dialogue:
-                return {
-                    "text": dialogue,
-                    "language": "vi",
-                    "segments": [result["chunks"] for result in channel_results],
-                    "duration_seconds": duration_seconds,
-                    "speaker_mode": speaker_mode,
-                }
-
-    result = run_asr(file_path)
+    result = model(
+        str_path,
+        generate_kwargs={"no_repeat_ngram_size": 3, "repetition_penalty": 1.1}
+    )
+    raw_text = result.get("text", "").strip()
     return {
-        "text": result["text"],
+        "text": normalize_transcript(raw_text),
         "language": "vi",
-        "segments": result["chunks"],
+        "segments": result.get("chunks", []),
         "duration_seconds": duration_seconds,
-        "speaker_mode": "mixed",
     }
 
 

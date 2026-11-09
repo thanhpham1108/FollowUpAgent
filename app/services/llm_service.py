@@ -229,7 +229,6 @@ class LLMService:
         *,
         reference_datetime: datetime | None = None,
         audio_duration_seconds: float | None = None,
-        speaker_mode: str = "mixed",
     ) -> AnalysisResult:
         """
         Xử lý phân tích dữ liệu bằng cách gửi HTTP Request tới Ollama
@@ -255,7 +254,6 @@ class LLMService:
                 audio_duration_seconds=(
                     f"{audio_duration_seconds:.1f}" if audio_duration_seconds is not None else "không rõ"
                 ),
-                speaker_mode=speaker_mode,
             )
 
             logger.info(f"Đang đẩy dữ liệu phân tích ({context_type}) cho: {contact_name} qua Ollama...")

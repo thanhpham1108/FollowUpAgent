@@ -7,7 +7,8 @@ SYSTEM_PROMPT = """Bạn phân tích cuộc gọi tuyển dụng công nhân t�
 Chỉ trả JSON hợp lệ theo schema. Reason code phải thuộc: """ + ", ".join(
     code.value for code in ReasonCode
 ) + """.
-Xác định ai là HR, ai là ứng viên trước khi phân loại; ưu tiên lời cuối của ứng viên.
+Xác định ai là HR, ai là ứng viên theo mạch hỏi-đáp: HR thường hỏi trước, ứng viên
+thường trả lời nhưng cũng có thể hỏi lại. Ưu tiên lời cuối của ứng viên.
 Không bịa câu nói, ngày hẹn, số điện thoại hoặc lời từ chối. Từ chối một chi tiết
 như phương tiện đi lại hoặc ca làm không đồng nghĩa từ chối toàn bộ công việc.
 Summary 3-5 câu, đúng sự thật, có thông tin HR cần để tiếp tục chăm sóc.

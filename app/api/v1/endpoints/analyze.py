@@ -60,7 +60,6 @@ async def process_candidate_audio(task_id: str, request: CandidateAnalyzeRequest
             stt_result = await speech_to_text(str(request.audio_url), task_id, return_metadata=True)
             transcript = stt_result["text"] if isinstance(stt_result, dict) else stt_result
             duration_seconds = stt_result.get("duration_seconds") if isinstance(stt_result, dict) else None
-            speaker_mode = stt_result.get("speaker_mode", "mixed") if isinstance(stt_result, dict) else "mixed"
 
             record.transcript = transcript
             await db.commit()
@@ -72,7 +71,6 @@ async def process_candidate_audio(task_id: str, request: CandidateAnalyzeRequest
                 contact_name=request.candidate_name,
                 context_type="hr",
                 audio_duration_seconds=duration_seconds,
-                speaker_mode=speaker_mode,
             )
 
             record.summary = analysis_result.summary
