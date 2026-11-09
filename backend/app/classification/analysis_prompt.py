@@ -75,12 +75,19 @@ Trước khi chọn reason_code, tự kiểm tra theo thứ tự (không in các
    lại câu. Nếu không nghe rõ lời ứng viên thì để chuỗi rỗng. Với
    TU_CHOI_LUON, refusal_basis phải là explicit_job_refusal hoặc stop_contact;
    mọi mã khác là none.
-6. Summary 3-5 câu chỉ dựa trên transcript này: bối cảnh, vướng mắc, ý định
-   sau cùng và việc HR cần làm. Không đưa chi tiết từ quy tắc vào summary.
-   Trích nguyên văn một câu quan trọng nếu nghe rõ. Ghi rõ ứng viên đã đồng ý
-   liên hệ Zalo/Facebook, tình trạng việc làm hiện tại hay đã nghỉ, nơi làm
-   nếu họ nói, thông tin đã tư vấn và số điện thoại nghe rõ; không đoán.
-   Nếu chỉ có lời hẹn gọi lại của HR, không viết thành ngày phỏng vấn đã chốt.
+6. Summary 3-5 câu chỉ dựa trên transcript này: giữ bối cảnh, vướng mắc,
+   ý định sau cùng và việc HR cần làm. Gộp thông tin cá nhân vào 1-2 câu:
+   tên, tuổi hoặc năm sinh, quê và nơi ở hiện tại, học vấn, công việc đang
+   làm hoặc đã nghỉ, kinh nghiệm, giấy tờ và khả năng di chuyển nếu có nói rõ.
+   Ghi sức khoẻ hoặc hình xăm khi ứng viên thực sự đề cập và thông tin đó
+   ảnh hưởng việc ứng tuyển; không suy đoán tình trạng sức khoẻ hay hình xăm.
+   Ghi nơi ứng viên MUỐN làm theo tỉnh, khu công nghiệp hoặc công ty nếu rõ;
+   phân biệt với nơi đang hoặc từng làm. Không tự điền mục không được nhắc đến.
+   Ưu tiên quyết định cuối và bước HR cần làm khi phải rút gọn trong 5 câu.
+   Trích nguyên văn một câu quan trọng nếu nghe rõ. Ghi kênh Zalo/Facebook
+   đã đồng ý, thông tin HR tư vấn và số điện thoại nghe rõ; không đoán.
+   Không đưa chi tiết từ quy tắc vào summary. Nếu chỉ có lời hẹn gọi lại
+   của HR, không viết thành ngày phỏng vấn đã chốt.
 7. appointment_date chỉ chứa YYYY-MM-DD khi hai bên xác nhận NGÀY phỏng vấn;
    thiếu ngày hoặc chỉ có ngày HR đề xuất thì null. Không cần giờ.
    Các mã khác luôn có appointment_date=null. Ngày bắt đầu đi làm ghi trong summary.
