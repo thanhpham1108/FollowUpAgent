@@ -1,0 +1,97 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[vietnamese]{babel}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\title[Tiến độ FollowUpAgent]{Báo cáo Tiến độ Dự án FollowUpAgent}
+\subtitle{Hoàn thiện Phase 2: AI Pipeline Core}
+\author[]{Team UC-04}
+\institute{}
+\date{23 Tháng 6, 2026}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}
+\frametitle{Tóm tắt tiến độ (Executive Summary)}
+\begin{itemize}
+    \item \textbf{Giai đoạn hoàn thành:} Đã xây dựng hoàn chỉnh \textbf{Phase 2 - AI Pipeline Core}.
+    \item \textbf{Các hạng mục kỹ thuật đã triển khai thành công:}
+    \begin{itemize}
+        \item Xây dựng kiến trúc Database và cấu hình an toàn (Pydantic BaseSettings).
+        \item Tích hợp Whisper STT tạo Pipeline tải và bóc băng âm thanh tự động.
+        \item Xây dựng dịch vụ AI Local (LLM GGUF) kèm bộ Prompt chấm điểm ứng viên.
+        \item Thiết lập dịch vụ Webhook trả kết quả về CRM với cơ chế chống lỗi (Retry/Backoff).
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Kiến trúc Hệ thống \& Cơ sở dữ liệu}
+\begin{itemize}
+    \item \textbf{Tự động hoá cấu hình:} Áp dụng Pydantic BaseSettings v2 để quản lý biến môi trường an toàn.
+    \item \textbf{Khởi chạy tự động:} Cơ chế tạo bảng Database và nạp mô hình AI ngay khi khởi chạy server.
+    \item \textbf{Cơ sở dữ liệu (PostgreSQL/SQLite):} 
+    \begin{itemize}
+        \item Bảng \texttt{CallRecord}: Lưu trữ thông tin và kết quả phân tích ghi âm phỏng vấn.
+        \item Bảng \texttt{FollowUpTask}: Quản lý lộ trình và lập lịch gửi tin nhắn follow-up ứng viên tự động.
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Pipeline Xử lý Âm thanh (STT)}
+\begin{block}{Tự động hoá với PhoWhisper}
+Hệ thống xử lý âm thanh tự động qua 3 bước:
+\begin{enumerate}
+    \item \textbf{Tải file (Download):} Nhận URL từ CRM, tải bằng stream và kiểm tra định dạng.
+    \item \textbf{Bóc băng (Transcribe):} Chạy mô hình PhoWhisper-medium (tối ưu tiếng Việt) để chuyển đổi âm thanh thành văn bản.
+    \item \textbf{Dọn dẹp (Cleanup):} Tự động xóa file tạm sau xử lý nhằm tiết kiệm dung lượng server.
+\end{enumerate}
+\end{block}
+\end{frame}
+
+\begin{frame}
+\frametitle{Pipeline Phân tích AI (Local LLM)}
+\begin{itemize}
+    \item \textbf{Kiến trúc an toàn:} Sử dụng mô hình GGUF cục bộ (Local LLM), không gửi dữ liệu ra ngoài internet, đảm bảo tuyệt đối tính bảo mật.
+    \item \textbf{Đánh giá Ứng viên (HR):} Tích hợp bộ Prompt Template chuyên biệt phục vụ tuyển dụng để:
+    \begin{itemize}
+        \item Tóm tắt nội dung phỏng vấn, đánh giá năng lực \& thái độ ứng viên.
+        \item Tự động tạo gợi ý tin nhắn/email thông báo kết quả.
+    \end{itemize}
+    \item \textbf{Trích xuất dữ liệu:} Tự động bóc tách và chuẩn hoá phản hồi của AI thành định dạng JSON để đồng bộ.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Dịch vụ Giao tiếp CRM (Webhook)}
+\begin{itemize}
+    \item \textbf{Giao tiếp một đầu mối:} Thiết kế chuyên biệt để nhận file âm thanh từ CRM và trả kết quả về duy nhất hệ thống CRM.
+    \item \textbf{Webhook Bất đồng bộ (Asynchronous):}
+    \begin{itemize}
+        \item Xử lý ngầm tiến trình AI (Nhận audio $\rightarrow$ STT $\rightarrow$ Phân tích LLM).
+        \item Tự động đóng gói kết quả tóm tắt và lời khuyên (suggestions) đẩy về endpoint của CRM.
+    \end{itemize}
+    \item \textbf{Đảm bảo dữ liệu (Reliability):} Sử dụng phương thức HTTP POST với cơ chế \textit{Exponential Backoff} (Tự động thử lại nhiều lần nếu kết nối với CRM bị lỗi).
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Kế hoạch Tiếp theo (Phase 3: Rule Engine \& Intelligence Layer)}
+\begin{itemize}
+    \item \textbf{Kết nối Database Rule:} Thiết lập lịch follow-up tự động theo chu kỳ (D+1, D+3, D+7).
+    \item \textbf{Map Intent sang Rule:} Ánh xạ ý định (Intent) của ứng viên được AI phân tích vào các quy tắc xử lý tương ứng.
+    \item \textbf{Truy vấn ra quyết định:} Khai thác Database để AI tự động quyết định ngày hẹn và luồng kịch bản tiếp theo.
+    \item \textbf{Tạo Audit Log:} Xây dựng hệ thống lưu vết (tracking) toàn bộ quá trình ra quyết định của AI để dễ dàng kiểm toán.
+\end{itemize}
+\end{frame}
+
+
+
+\end{document}

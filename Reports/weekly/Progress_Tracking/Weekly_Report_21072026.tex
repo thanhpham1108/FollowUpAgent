@@ -1,0 +1,113 @@
+% -------------------------------------------------------
+% Báo cáo Tiến độ (Weekly Report)
+% Giai đoạn: Hoàn tất cơ sở hạ tầng hệ thống (Infrastructure Layer)
+% Nội dung: Dựa trên báo cáo 21/07/2026
+% -------------------------------------------------------
+
+% --- Frame 1: Tổng quan Tiến độ (Progress Tracking) ---
+\begin{frame}{Tổng quan Tiến độ (Infrastructure Layer)}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{|c|p{7.5cm}|c|}
+            \hline
+            \textbf{\#} & \textbf{Hạng mục công việc (Nền tảng \& Hạ tầng)} & \textbf{Trạng thái} \\ \hline
+            1 & Khởi tạo Database ORM (SQLAlchemy + SQLite) & \checkmark \\ \hline
+            2 & Xây dựng hệ thống Ghi log (RotatingFileHandler) & \checkmark \\ \hline
+            3 & Quản lý File tạm & \checkmark \\ \hline
+            4 & Bộ bắt lỗi API thống nhất (Exception Handler) & \checkmark \\ \hline
+            5 & Quản lý phụ thuộc (Dependency Injection) \& Health Check & \checkmark \\ \hline
+            6 & Chuẩn hóa System Prompt tiếng Việt cho AI & \checkmark \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{0.2cm}
+    \textit{$\rightarrow$ \textbf{Đánh giá:} Bất chấp sự cố gián đoạn kết nối Server/GPU trong 3 ngày qua, nhóm đã chủ động chuyển hướng hoàn thiện 100\% các tiêu chuẩn mã nguồn ở môi trường Local, sẵn sàng cho việc Deploy.}
+\end{frame}
+
+% --- Frame 2: Phản ứng với sự cố & Tối ưu Local ---
+\begin{frame}{Chiến lược Ứng phó Sự cố Server}
+    \begin{block}{Sự cố gián đoạn kết nối (3 ngày qua)}
+        Không thể SSH vào hệ thống Server lõi để kiểm thử mô hình AI (Whisper/GGUF) với Card đồ họa (GPU).
+    \end{block}
+    
+    \vspace{0.2cm}
+    \textbf{Giải pháp thay thế tạm thời:} Đóng băng Phase 4 (AI Workflow), dồn toàn lực tái cấu trúc (Refactor) và tối ưu hóa hệ thống chạy Local:
+    \begin{itemize}
+        \item Cài đặt cơ sở dữ liệu ảo cục bộ (\texttt{test.db}) để test luồng ghi/đọc mà không cần PostgreSQL.
+        \item Tự động dọn dẹp bộ nhớ: Viết các script trong \texttt{app/utils/file\_manager.py} để xóa file âm thanh rác nhằm tránh tràn ổ cứng khi deploy thật.
+        \item Cung cấp file audio mẫu (\texttt{22685287.pcm.wav}) ngay trong source code để dev có thể test luồng STT nội bộ.
+    \end{itemize}
+\end{frame}
+
+% --- Frame 3: Cấu trúc Kỹ thuật Mới (1/2) ---
+\begin{frame}{Nâng cấp Kiến trúc Mã nguồn (1/2)}
+    \textbf{1. Hệ thống Ghi log chuyên nghiệp (\texttt{app/utils/logger.py})}
+    \begin{itemize}
+        \item Ghi nhận song song: Xuất log ra Console và File.
+        \item Tối ưu dung lượng: Tự động cắt file log (Rotate) khi đạt 10MB, giữ lại tối đa 5 bản backup. Giúp truy vết lỗi dễ dàng khi đưa lên Server.
+    \end{itemize}
+    
+    \vspace{0.2cm}
+    \textbf{2. Quản lý Ngoại lệ \& Lỗi (\texttt{app/core/exceptions.py})}
+    \begin{itemize}
+        \item Gom toàn bộ lỗi hệ thống (HTTP 4xx, 5xx, Lỗi Validate Pydantic) về một định dạng JSON thống nhất (\texttt{\{"detail": "...", "status\_code": ...\}}).
+        \item Tránh việc FastAPI ném ra các trang HTML lỗi mặc định làm gián đoạn API của khách hàng.
+    \end{itemize}
+\end{frame}
+
+% --- Frame 4: Cấu trúc Kỹ thuật Mới (2/2) ---
+\begin{frame}{Nâng cấp Kiến trúc Mã nguồn (2/2)}
+    \textbf{3. Quản lý Cơ sở dữ liệu (\texttt{app/core/database.py})}
+    \begin{itemize}
+        \item Triển khai \textbf{SQLAlchemy ORM} với cơ chế \texttt{check\_same\_thread=False} tương thích hoàn toàn với luồng Async của FastAPI.
+        \item Sử dụng hàm \texttt{get\_db()} làm \textbf{Dependency Injection} tiêu chuẩn, cấp phát Session DB cho mỗi Request an toàn.
+    \end{itemize}
+    
+    \vspace{0.2cm}
+    \textbf{4. Gò khung AI (Prompts)}
+    \begin{itemize}
+        \item Đóng gói chỉ dẫn (System Prompt) bắt buộc AI phải phản hồi bằng tiếng Việt.
+        \item Bắt buộc output phải là JSON thuần túy (không bọc trong \texttt{```json}). Nếu thiếu thông tin, AI phải điền vào \texttt{summary} thay vì tự bịa dữ liệu.
+    \end{itemize}
+\end{frame}
+
+% --- Frame 5: Vấn đề Tồn đọng (Blockers) ---
+\begin{frame}[fragile]{Các Điểm Nghẽn Hiện Tại (Blockers)}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{|l|p{7.5cm}|c|}
+            \hline
+            \textbf{\#} & \textbf{Vấn đề} & \textbf{Mức độ} \\ \hline
+            1 & Lỗi Webhook Serialization (\texttt{datetime}, \texttt{Enum}) & \textcolor{orange}{Trung bình} \\ \hline
+            2 & CRM API Contract từ đối tác chưa chốt & \textcolor{green}{Thấp} \\ \hline
+        \end{tabular}
+    \end{table}
+
+    \vspace{0.2cm}
+    \begin{block}{Chi tiết sự cố Webhook (\texttt{app/services/webhook\_service.py})}
+        Khi convert dữ liệu từ Pydantic sang JSON để ném về CRM:
+        \begin{lstlisting}[language=python, basicstyle=\tiny, title=Code hiện tại (Lỗi)]
+json_data = payload.model_dump()
+# httpx.post se bi sập vì khong the doc duoc cac bien kieu datetime
+        \end{lstlisting}
+        \begin{lstlisting}[language=python, basicstyle=\tiny, title=Khắc phục (Đề xuất)]
+json_data = payload.model_dump(mode="json") 
+# Ép toàn bộ biến nội bộ (datetime/Enum) về dạng string an toan
+        \end{lstlisting}
+    \end{block}
+\end{frame}
+
+% --- Frame 6: Kế hoạch Kế tiếp ---
+\begin{frame}{Kế hoạch Triển khai (Ngay sau buổi Báo cáo)}
+    \begin{exampleblock}{Tin vui: Đã khôi phục quyền truy cập Server}
+        Tài nguyên Server/LLM vừa được đội ngũ kỹ thuật cấp lại vào chiều nay. Dự án chính thức thoát khỏi tình trạng "đóng băng" môi trường thực.
+    \end{exampleblock}
+    
+    \vspace{0.2cm}
+    \textbf{Nhiệm vụ tuần tới:}
+    \begin{itemize}
+        \item \textbf{Hotfix Webhook:} Bổ sung biến môi trường \texttt{WEBHOOK\_URL} và sửa lỗi \texttt{mode="json"} nêu trên.
+        \item \textbf{Đóng gói Docker:} Tiến hành cấu hình \texttt{docker-compose.yml} nhận diện cạc đồ họa (GPU NVIDIA) trên server thật.
+        \item \textbf{Kiểm thử End-to-End:} Bắn request chạy trọn vẹn luồng Audio $\rightarrow$ Whisper $\rightarrow$ LLM $\rightarrow$ Rule Engine $\rightarrow$ DB (Chuyển sang PostgreSQL thay vì SQLite).
+    \end{itemize}
+\end{frame}

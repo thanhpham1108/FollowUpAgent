@@ -1,0 +1,120 @@
+% --- Frame 0: Tổng quan Tiến độ (Progress Tracking) ---
+\begin{frame}{Tổng quan Tiến độ Dự án (Phase 1: Foundation \& Integration)}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{|c|p{7.5cm}|c|}
+            \hline
+            \textbf{\#} & \textbf{Hạng mục công việc (Phase 1)} & \textbf{Trạng thái} \\ \hline
+            1 & Hoạch định Luồng Dữ liệu (Data Flow) & \checkmark \\ \hline
+            2 & Chốt Kiến trúc Hệ thống (FastAPI + LangChain) \& Database & \checkmark \\ \hline
+            3 & Thống nhất Hợp đồng Giao tiếp (API Contract) & \checkmark \\ \hline
+            4 & Khởi tạo Mã nguồn (Repository) \& Môi trường Docker & \checkmark \\ \hline
+            5 & Xây dựng Endpoint tiếp nhận dữ liệu & \checkmark \\ \hline
+            6 & Thiết lập Cơ chế Xử lý Nền (Background Pipeline) & \checkmark \\ \hline
+            7 & Tích hợp thử nghiệm với hệ thống CRM hiện tại & \textit{Chờ mở rộng API} \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{0.2cm}
+    \textit{$\rightarrow$ \textbf{Kết luận:} Phase 1 đã hoàn thiện 100\% phần hạ tầng lõi. Hạng mục (7) đang tạm hoãn, chờ Đội ngũ Quản trị Hạ tầng mở rộng API của CRM để tiến hành tích hợp.}
+\end{frame}
+
+% --- Frame 1: Repository & Cấu trúc mã nguồn (1/2) ---
+\begin{frame}{Khởi tạo Repository \& Cấu trúc Dự án (1/2)}
+    Hệ thống được thiết kế theo kiến trúc \textbf{Production-ready}, tuân thủ nguyên tắc \textit{Separation of Concerns} nhằm đảm bảo tính mở rộng và dễ bảo trì:
+    \vspace{0.2cm}
+    \begin{itemize}
+        \item \textbf{\texttt{app/api/}:} Lớp điều hướng (Routing). Chịu trách nhiệm tiếp nhận và định tuyến các HTTP request từ CRM. Lớp này được thiết kế độc lập, tách biệt hoàn toàn khỏi logic nghiệp vụ.
+        \item \textbf{\texttt{app/schemas/}:} Lớp chuẩn hóa và kiểm định dữ liệu (Data Validation) bằng Pydantic. Đảm bảo tính toàn vẹn của dữ liệu đầu vào, tối ưu hóa tài nguyên bằng cách từ chối các request không hợp lệ ngay tại tầng kiểm duyệt.
+        \item \textbf{\texttt{app/core/}:} Phân hệ cấu hình trung tâm. Quản lý toàn bộ biến môi trường, thông tin xác thực và tham số hệ thống nhằm đảm bảo an toàn thông tin.
+    \end{itemize}
+\end{frame}
+
+% --- Frame 1b: Repository & Cấu trúc mã nguồn (2/2) ---
+\begin{frame}{Khởi tạo Repository \& Cấu trúc Dự án (2/2)}
+    Kiến trúc mã nguồn được quy hoạch đồng bộ nhằm phục vụ trực tiếp cho việc tích hợp mô hình Trí tuệ Nhân tạo (AI) ở Phase 2:
+    \vspace{0.2cm}
+    \begin{itemize}
+        \item \textbf{\texttt{app/services/}:} Lớp xử lý nghiệp vụ cốt lõi (Business Logic). Thiết kế theo định dạng module, chuẩn bị sẵn sàng tích hợp các dịch vụ như \texttt{audio\_service} (Whisper) và \texttt{llm\_service} (LangChain).
+        \item \textbf{\texttt{app/prompts/}:} Phân hệ quản lý \textbf{System Prompts}. Tách biệt hoàn toàn tầng chỉ dẫn LLM khỏi mã nguồn, hỗ trợ linh hoạt trong việc tinh chỉnh (tuning) mô hình.
+        \item \textbf{Môi trường \& Kiểm thử (CI/CD Readiness):} 
+        \begin{itemize}
+            \item \texttt{Dockerfile}: Hoàn thiện cấu hình đóng gói container, đảm bảo tính đồng nhất khi triển khai (deployment) trên các môi trường máy chủ khác nhau.
+            \item \texttt{tests/}: Thiết lập sẵn framework kiểm thử tự động, phục vụ cho Unit Test và Integration Test.
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+% --- Frame 2: Background Tasks & API Contract ---
+\begin{frame}{Tiến độ Kỹ thuật: Tối ưu hóa Hiệu năng \& Hợp đồng API}
+    \begin{block}{Cơ chế xử lý bất đồng bộ (Background Tasks)}
+        Áp dụng cơ chế xử lý nền nhằm giải quyết vấn đề \textbf{nghẽn cổ chai hiệu năng (Performance Bottleneck)}. 
+        \begin{itemize}
+            \item Hệ thống ngay lập tức phản hồi mã \texttt{202 Accepted} và \texttt{task\_id} khi nhận được request.
+            \item Quá trình tải dữ liệu âm thanh và phân tích AI được chuyển giao cho tiến trình chạy nền (Background Process), đảm bảo hệ thống CRM không gặp tình trạng chờ đồng bộ (Timeout).
+        \end{itemize}
+    \end{block}
+    
+    \begin{block}{Hợp đồng Giao tiếp Hệ thống (API Contract)}
+        Chuẩn hóa cấu trúc giao tiếp JSON hai chiều:
+        \begin{itemize}
+            \item \textbf{CRM $\rightarrow$ AI:} Truyền tải thông tin ứng viên (\texttt{ssn}, \texttt{name}) và URL liên kết tệp âm thanh.
+            \item \textbf{AI $\rightarrow$ CRM (Webhook):} Phản hồi \texttt{task\_id} và kết quả phân tích hệ thống (\texttt{summary}, \texttt{recommended\_message}).
+        \end{itemize}
+    \end{block}
+\end{frame}
+
+% --- Frame 3: Infrastructure & Limitations ---
+\begin{frame}{Khảo sát chuyên sâu Hệ thống CRM hiện hành}
+    Nhóm dự án đã tiến hành truy cập vào máy chủ nội bộ (\texttt{ood-master}) và thực hiện phân tích ngược (Reverse Engineering) các API đang được vận hành tại \texttt{192.168.25.175:8002}.
+    \vspace{0.2cm}
+    
+    \textbf{Kết quả phân tích tài nguyên hệ thống:}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{|l|p{5cm}|c|}
+            \hline
+            \textbf{Tài nguyên (Endpoint)} & \textbf{Phân tích cấu trúc dữ liệu (Schema)} & \textbf{Thuộc UC04?} \\ \hline
+            \texttt{/deals/\{id\}} & Chứa 17+ trường dữ liệu phức tạp (deal\_value, current\_stage, sentiment...) & \textbf{Không} \\ \hline
+            \texttt{/llm/recommend} & Cung cấp \texttt{deal\_id} để AI tư vấn kịch bản chốt đơn (Sales Workflow) & \textbf{Không} \\ \hline
+            \texttt{/health} & Kiểm tra tình trạng sức khỏe của hệ thống (Health Check) & \textbf{Có} \\ \hline
+        \end{tabular}
+    \end{table}
+    
+    \vspace{0.2cm}
+    \textit{$\rightarrow$ \textbf{Nhận định:} Hệ thống CRM được xây dựng với mức độ hoàn thiện cao, tuy nhiên toàn bộ kiến trúc dữ liệu (Data Schema) đang phục vụ độc quyền cho luồng nghiệp vụ Sales. Hệ thống chưa tích hợp các Endpoint xử lý dữ liệu Tuyển dụng.}
+\end{frame}
+
+% --- Frame 4: Solution & API Expansion Request ---
+\begin{frame}{Đánh giá Mức độ Tương thích \& Đề xuất Kỹ thuật}
+    Căn cứ vào kết quả phân tích cấu trúc, nhóm dự án kết luận hệ thống CRM hiện tại \textbf{chưa tương thích} với luồng dữ liệu của dự án UC04 (Tuyển dụng/Ứng viên).
+    
+    \begin{exampleblock}{Đề xuất Kỹ thuật (Tài liệu \texttt{API\_Expansion\_Request.md})}
+        Nhằm đảm bảo dự án UC04 có thể vận hành tích hợp, hệ thống CRM cần được cấu hình thêm 2 Endpoint chuyên biệt:
+        \begin{itemize}
+            \item \textbf{\texttt{POST /candidates/analyze}:} Endpoint tiếp nhận thông tin \texttt{ssn}, \texttt{candidate\_name}, và \texttt{audio\_url} từ CRM.
+            \item \textbf{\texttt{POST /candidates/webhook}:} Webhook Endpoint (Listener) để tiếp nhận kết quả phân tích định dạng JSON từ hệ thống AI.
+        \end{itemize}
+    \end{exampleblock}
+    
+    \textbf{Kế hoạch hành động (Action Item):} Nhằm hạn chế rủi ro khi can thiệp trực tiếp vào mã nguồn của CRM, nhóm sẽ chuyển giao bản phân tích kỹ thuật này cho Đội ngũ Quản trị Hạ tầng để phối hợp mở rộng API.
+\end{frame}
+
+% --- Frame 5: Next Steps (Phase 2) ---
+\begin{frame}{Kế hoạch Triển khai Sprint tiếp theo (Phase 2: AI Pipeline Core)}
+    Ngay sau khi hạng mục mở rộng API được hoàn tất, nhóm sẽ tiến hành triển khai Phase 2:
+    
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{|c|p{7cm}|c|}
+            \hline
+            \textbf{\#} & \textbf{Nhiệm vụ trọng tâm} & \textbf{Thời gian} \\ \hline
+            1 & \textbf{Tích hợp Whisper:} Xử lý chuyển đổi tín hiệu âm thanh thành văn bản (Speech-to-Text). & Tuần 7 \\ \hline
+            2 & \textbf{Tích hợp LLM (LangChain):} Chuyển giao văn bản cho LLM phân tích ngữ nghĩa. & Tuần 7 \\ \hline
+            3 & \textbf{Hoàn thiện System Prompt V1:} Thiết lập chỉ dẫn hệ thống nhằm tối ưu hóa khả năng tóm tắt và chuẩn hóa đầu ra JSON. & Tuần 7-8 \\ \hline
+            4 & \textbf{Xử lý Ngoại lệ (Exception Handling):} Thiết lập cơ chế kiểm soát lỗi định dạng JSON do LLM sinh ra. & Tuần 8 \\ \hline
+            5 & \textbf{Ghi nhận Nhật ký (Logging):} Lưu trữ vết tương tác hệ thống (Input/Output) trên Supabase phục vụ công tác kiểm toán (Audit). & Tuần 8 \\ \hline
+        \end{tabular}
+    \end{table}
+\end{frame}

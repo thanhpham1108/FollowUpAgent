@@ -1,0 +1,160 @@
+% -------------------------------------------------------
+% Weekly Progress Report - 05/07/2026
+% Giai đoạn: Hoàn tất Phase 3 (Rule Engine & Intelligence Layer)
+% Người thực hiện: Trần Nguyễn Quỳnh Như, Thành Phạm
+% -------------------------------------------------------
+
+% --- Frame 0: Tổng quan Tiến độ ---
+\begin{frame}{Tổng quan Tiến độ Dự án (Phase 3: Rule Engine \& Intelligence Layer)}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{|c|p{7.5cm}|c|}
+            \hline
+            \textbf{\#} & \textbf{Hạng mục công việc (Phase 3)} & \textbf{Trạng thái} \\ \hline
+            1 & Xây dựng Rule Engine lõi (\texttt{rule\_engine.py}) & \checkmark \\ \hline
+            2 & Tích hợp 5 nhóm nghiệp vụ thực tế của công ty & \checkmark \\ \hline
+            3 & Khởi tạo bảng \texttt{AuditLog} -- ghi nhật ký quyết định AI & \checkmark \\ \hline
+            4 & Nâng cấp System Prompt gò AI theo chuẩn JSON & \checkmark \\ \hline
+            5 & Khép kín luồng xử lý End-to-End (Audio $\rightarrow$ DB $\rightarrow$ Webhook) & \checkmark \\ \hline
+            6 & Tài liệu hóa Rule Engine (\texttt{Rule\_Engine.md}) & \checkmark \\ \hline
+            7 & Deploy thực tế với Model GGUF trên GPU Server & \textit{Chờ Server/GPU} \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{0.2cm}
+    \textit{$\rightarrow$ \textbf{Kết luận:} Phase 3 đã hoàn thiện 100\% về mặt code và tích hợp. Hệ thống đã nâng cấp từ pipeline xử lý audio đơn giản thành \textbf{Agent tự động ra quyết định} dựa trên bộ quy tắc nghiệp vụ.}
+\end{frame}
+
+
+% --- Frame 1: Rule Engine Core ---
+\begin{frame}{Rule Engine: Lõi Ra Quyết Định Tự Động (\texttt{app/services/rule\_engine.py})}
+    \begin{block}{Mục tiêu}
+        Thay thế quy trình ra quyết định thủ công của nhân viên HR bằng một bộ quy tắc tự động hoá, tái sử dụng và kiểm toán được.
+    \end{block}
+    \vspace{0.2cm}
+    \textbf{5 nhóm nghiệp vụ được mã hoá vào Rule Engine:}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{|c|l|p{4.5cm}|}
+            \hline
+            \textbf{Nhóm} & \textbf{Trạng thái} & \textbf{Hành động tự động} \\ \hline
+            1 & Chưa tư vấn & Gọi lại sau \textbf{10 phút} \\ \hline
+            2 & Cần gọi lại & Gọi lại sau \textbf{1--3 ngày} (tuỳ lý do) \\ \hline
+            3 & UV Tiềm năng & Chăm sóc sau \textbf{3 ngày} \\ \hline
+            4 & Hẹn phỏng vấn & Nhắc lịch theo \texttt{appointment\_date} từ AI \\ \hline
+            5 & Đi làm tạm tính & Chăm sóc sau \textbf{2 ngày} \\ \hline
+        \end{tabular}
+    \end{table}
+\end{frame}
+
+
+% --- Frame 2: This Week's Progress (Task Table) ---
+\begin{frame}{Chi tiết Công việc Đã Hoàn Thành trong Tuần}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.4}
+        \begin{tabular}{|l|p{7cm}|c|}
+            \hline
+            \textbf{\#} & \textbf{Nhiệm vụ} & \textbf{Trạng thái} \\ \hline
+            1 & Xây dựng \texttt{RuleEngineService} -- ánh xạ \texttt{status\_group} sang lịch Follow-up & \checkmark \\ \hline
+            2 & Khởi tạo bảng \texttt{AuditLog} (ORM) -- lưu mỗi quyết định AI+Engine & \checkmark \\ \hline
+            3 & Viết lại System Prompt gò LLM ra JSON nghiêm ngặt (5 nhóm, mã lý do) & \checkmark \\ \hline
+            4 & Tích hợp \texttt{RuleEngineService} vào API \texttt{/candidates/analyze} & \checkmark \\ \hline
+            5 & Fix lỗi \texttt{UnboundLocalError} \& Database Session conflict & \checkmark \\ \hline
+            6 & Cập nhật Schema Pydantic (\texttt{response.py}) thêm \texttt{status\_group}, \texttt{reason\_code} & \checkmark \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{0.2cm}
+    \begin{itemize}
+        \item Luồng xử lý hoàn chỉnh: \textbf{Audio $\rightarrow$ Whisper STT $\rightarrow$ Local LLM $\rightarrow$ Rule Engine $\rightarrow$ DB $\rightarrow$ CRM Webhook}.
+        \item Tất cả quyết định được lưu \texttt{AuditLog} -- đảm bảo tính minh bạch, có thể tra cứu.
+    \end{itemize}
+\end{frame}
+
+
+% --- Frame 3: AuditLog & Tracking ---
+\begin{frame}{Hệ thống Ghi Nhật Ký Quyết Định (AuditLog)}
+    \begin{block}{Mục tiêu thiết kế}
+        Đảm bảo \textbf{100\% minh bạch}: mỗi quyết định của AI và Rule Engine đều được lưu lại, phục vụ kiểm toán (Audit) và troubleshooting.
+    \end{block}
+    \vspace{0.2cm}
+    \textbf{Dữ liệu được lưu trong mỗi bản ghi \texttt{AuditLog}:}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{|l|p{6.5cm}|}
+            \hline
+            \textbf{Trường} & \textbf{Mô tả} \\ \hline
+            \texttt{call\_record\_id} & Liên kết tới bản ghi cuộc gọi gốc \\ \hline
+            \texttt{input\_group} & Nhóm nghiệp vụ do LLM phân loại (1--5) \\ \hline
+            \texttt{input\_reason} & Mã lý do (\texttt{KNM\_1}, \texttt{HEN\_PHONG\_VAN}\ldots) \\ \hline
+            \texttt{scheduled\_at} & Thời điểm Follow-up được lên lịch (datetime) \\ \hline
+            \texttt{created\_at} & Thời điểm quyết định được tạo ra \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{0.2cm}
+    \textit{$\rightarrow$ Toàn bộ dữ liệu lưu \textbf{Local} (SQLite/PostgreSQL) -- đảm bảo an toàn trong môi trường nội bộ (Offline).}
+\end{frame}
+
+
+% --- Frame 4: LLM Prompt Upgrade ---
+\begin{frame}[fragile]{Nâng cấp System Prompt -- Gò LLM theo Chuẩn Nghiệp vụ}
+    \textbf{Vấn đề trước đây:} LLM trả về kết quả tự do, không nhất quán $\rightarrow$ Rule Engine không parse được.
+
+    \vspace{0.3cm}
+    \textbf{Giải pháp:} Viết lại System Prompt với các ràng buộc cứng:
+    \begin{exampleblock}{Cấu trúc JSON bắt buộc trả về}
+    \begin{lstlisting}[language=json, basicstyle=\tiny]
+{
+    "summary": "Tóm tắt ngắn gọn nội dung cuộc gọi",
+    "status_group": 3,
+    "reason_code": "CHUA_CHOT_NGAY",
+    "appointment_date": null,
+    "recommended_message": "Nội dung tin nhắn gợi ý gửi ứng viên"
+}
+    \end{lstlisting}
+    \end{exampleblock}
+    \begin{itemize}
+        \item \scriptsize \textbf{Không} bọc trong markdown code block (tránh lỗi parse JSON).
+        \item \scriptsize Nếu thiếu thông tin, LLM phải ghi rõ vào \texttt{summary} -- không được tự suy diễn.
+        \item \scriptsize \texttt{appointment\_date} để \texttt{null} khi không có lịch cụ thể.
+    \end{itemize}
+\end{frame}
+
+
+% --- Frame 5: Blockers ---
+\begin{frame}{Khó khăn / Điểm nghẽn (Blockers) hiện tại}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.5}
+        \begin{tabular}{|c|p{5cm}|c|p{3.5cm}|}
+            \hline
+            \textbf{\#} & \textbf{Vấn đề} & \textbf{Mức độ} & \textbf{Ghi chú} \\ \hline
+            1 & Chưa có Server/GPU để deploy Model GGUF thực tế & \textcolor{red}{\textbf{Cao}} & Chặn toàn bộ test E2E với audio thật \\ \hline
+            2 & Chờ API Contract hoàn chỉnh từ CRM đối tác & \textcolor{orange}{\textbf{Trung bình}} & Cần để căn chỉnh format webhook đầu ra \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{0.3cm}
+    \begin{block}{Rủi ro cần theo dõi}
+        Nếu GPU Server tiếp tục trì hoãn, nhóm sẽ chuyển hướng sang dùng \textbf{Ollama} trên máy local để kiểm thử giới hạn, nhằm đảm bảo tiến độ tổng thể.
+    \end{block}
+\end{frame}
+
+
+% --- Frame 6: Next Steps (Phase 4) ---
+\begin{frame}{Kế hoạch Sprint Tiếp Theo (Phase 4: Agent Workflow Hoàn Chỉnh)}
+    \vspace{0.3cm}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.5}
+        \begin{tabular}{|c|p{7.5cm}|l|}
+            \hline
+            \textbf{\#} & \textbf{Nhiệm vụ trọng tâm} & \textbf{Mục tiêu} \\ \hline
+            1 & \textbf{Refactor kiến trúc} thành dạng Chain/Graph -- tách bạch Transcription, Intent Detection, Decision Engine & Tuần tới \\ \hline
+            2 & \textbf{Thiết lập Docker Compose} với GPU để kiểm thử E2E với file âm thanh thực tế & Tuần tới \\ \hline
+            3 & \textbf{Tích hợp Webhook thực} với CRM đối tác (khi nhận được API Contract) & Chờ đối tác \\ \hline
+            4 & \textbf{Cơ sở dữ liệu Production} -- chuyển từ SQLite sang PostgreSQL & Tuần tới \\ \hline
+            5 & \textbf{Tài liệu hóa} API Contract mới nhất và cập nhật \texttt{Master\_Plan.md} & Tuần tới \\ \hline
+        \end{tabular}
+    \end{table}
+\end{frame}

@@ -1,0 +1,123 @@
+
+
+% --- Frame 2: This Week's Progress ---
+\begin{frame}{This Week's Progress}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{|l|p{7cm}|c|}
+            \hline
+            \textbf{\#} & \textbf{Task} & \textbf{Status} \\ \hline
+            1 & Define system architecture (offline AI deployment) & \checkmark \\ \hline
+            2 & Identify hardware requirements for Datacore & \checkmark \\ \hline
+            3 & Design API contract with CRM team & \checkmark \\ \hline
+        \end{tabular}
+    \end{table}
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item Completed core architectural design for security-sensitive offline environment.
+        \item Synchronized hardware specifications with Datacore infrastructure team.
+    \end{itemize}
+\end{frame}
+
+% --- Frame 3: Infrastructure Requirements (Datacore) ---
+\begin{frame}{Infrastructure Requirements}
+    
+    \begin{table}[]
+        \centering
+        \begin{tabular}{|l|l|}
+            \hline
+            \textbf{Component} & \textbf{Minimum Requirement} \\ \hline
+            CPU & 12–16 vCPU \\ \hline
+            RAM & 32 GB \\ \hline
+            \textbf{GPU} & \textbf{1$\times$ NVIDIA (RTX 3090/4090, A10G) $\ge$ 24GB VRAM} \\ \hline
+            Storage & 200 GB SSD \\ \hline
+            OS & Ubuntu 22.04 / 24.04 \\ \hline
+            Network & Internal only (no internet) \\ \hline
+        \end{tabular}
+    \end{table}
+    \begin{block}{Why 24GB+ VRAM?}
+        Required to run Whisper and 7-8B LLMs (Llama-3/Qwen-2.5) with acceptable latency. CPU-only inference is not viable for production.
+    \end{block}
+\end{frame}
+
+
+
+
+
+% --- Frame 6: API Contract (1/2) - Request Flow ---
+\begin{frame}[fragile]{API Contract: Request Processing}
+    \textbf{Step 1: CRM $\rightarrow$ AI Service} \\
+    CRM sends candidate metadata and an internal audio URL.
+    
+    \begin{exampleblock}{POST /api/v1/candidates/analyze}
+    \begin{lstlisting}[language=json, basicstyle=\tiny]
+{
+    "ssn": "079099123456",
+    "candidate_name": "Nguyen Van A",
+    "audio_url": "http://192.168.1.200/files/interview.mp3"
+}
+    \end{lstlisting}
+    \end{exampleblock}
+
+    \textbf{Step 2: AI Service Response} \\
+    The AI acknowledges the request and queues it for background processing.
+    
+    \begin{block}{Status: 202 Accepted}
+    \begin{lstlisting}[language=json, basicstyle=\tiny]
+{
+    "task_id": "TASK-a1b2c3d4",
+    "status": "processing",
+    "message": "Audio received; processing in background."
+}
+    \end{lstlisting}
+    \end{block}
+\end{frame}
+
+% --- Frame 7: API Contract (2/2) - Webhook Result ---
+\begin{frame}[fragile]{API Contract: Webhook Result}
+    \textbf{Step 3: AI Service $\rightarrow$ CRM Webhook} \\
+    Once analysis is complete, the AI pushes the result back to the CRM.
+
+    \begin{exampleblock}{POST /webhook/candidate-recommendation}
+    \begin{lstlisting}[language=json, basicstyle=\tiny]
+{
+    "task_id": "TASK-a1b2c3d4",
+    "ssn": "079099123456",
+    "status": "completed",
+    "result": {
+        "summary": "Solid technical skills. Clear communication.",
+        "recommended_message": "HR will follow up within 2 days."
+    }
+}
+    \end{lstlisting}
+    \end{exampleblock}
+
+    \begin{itemize}
+        \item \scriptsize \textbf{Audio Access:} CRM must host audio on an internal URL reachable by the AI.
+        \item \scriptsize \textbf{Reliability:} Recommend exponential-backoff retries for webhook failures.
+        \item \scriptsize \textbf{Tracking:} CRM should store the \texttt{task\_id} to match results to candidates.
+    \end{itemize}
+\end{frame}
+
+
+% --- Frame 4: Focus for This Week ---
+% --- Frame: Roadmap & Next Steps ---
+\begin{frame}{Roadmap (Next 2 Sprints)}
+ 
+
+    \vspace{0.3cm}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.5} % Tăng khoảng cách dòng cho dễ nhìn
+        \begin{tabular}{|c|p{7.5cm}|l|}
+            \hline
+            \textbf{\#} & \textbf{Task} & \textbf{Target Date} \\ \hline
+            1 & Provision a small test server (VM) for the FastAPI service & Week 1 (May 19) \\ \hline
+            2 & Produce Module Specification document (File responsibilities, interfaces, and API contracts) & Week 1 (May 19) \\ \hline
+            3 & Set up a minimal FastAPI skeleton (Health-check + Routing) & Week 2 (May 26) \\ \hline
+            4 & Validate core communication flows between CRM and AI & Week 2 (May 30) \\ \hline
+        \end{tabular}
+    \end{table}
+
+    
+\end{frame}

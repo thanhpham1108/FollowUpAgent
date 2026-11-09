@@ -23,10 +23,14 @@ ENV/
 # Temporary audio files
 data/
 
-Reports/
-
 # Log files
 logs/
+backend/eval/reports/
+
+# Local model weights and databases
+models/
+*.db
+*.wav
 
 # IDE
 .vscode/
