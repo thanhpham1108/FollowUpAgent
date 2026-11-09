@@ -54,5 +54,33 @@
     "transcript": "A: Chị Thu ơi, chị có thể phỏng vấn tuần này không? B: Tuần này không được đâu em, chị bận lắm. Tháng sau được không? A: Dạ được ạ, em sẽ sắp xếp lại. B: Ừ gọi lại cho chị tháng sau đi.",
     "expected_status_group": 3,
     "expected_reason_code": "HEN_XA"
+  },
+  {
+    "id": "case_09_18571597_manual_transcript",
+    "contact_name": "Ứng viên 18571597",
+    "transcript": "HR hỏi thứ Hai có đi phỏng vấn được không. Ứng viên nói có việc gia đình, không kịp xe hôm đó, nhưng có thể đi trước ngày 15. HR hẹn ngày 13 hoặc 14 sẽ liên hệ lại để thống nhất. Ứng viên nói ok và tiếp tục hỏi về hồ sơ, Zalo, chỗ ở, mức thưởng; cuối cuộc gọi hẹn liên lạc lại sau khi giải quyết việc gia đình.",
+    "expected_status_group": 4,
+    "expected_reason_code": "HEN_PHONG_VAN"
+  },
+  {
+    "id": "case_10_18522754_manual_transcript",
+    "contact_name": "Ứng viên 18522754",
+    "transcript": "Ứng viên hỏi về Luxshare, thưởng, chi phí đi lại và ký túc xá. Sau khi trao đổi cách đến Bắc Giang, ứng viên nói mai anh ra, đồng ý dùng số đang gọi để kết bạn Zalo và sẽ chấp nhận lời mời. HR nói sẽ đón ứng viên.",
+    "expected_status_group": 5,
+    "expected_reason_code": "DI_LAM"
+  },
+  {
+    "id": "case_11_employed_but_interested",
+    "contact_name": "Ứng viên đang làm nơi khác",
+    "transcript": "HR: Bên em có tuyển công nhân Luxshare. Ứng viên: Anh đang làm công ty khác rồi, nhưng lương bên em thế nào? Em gửi Zalo anh xem thêm nhé. HR: Dạ, em gửi anh.",
+    "expected_status_group": 3,
+    "expected_reason_code": "TRAO_DOI_THEM"
+  },
+  {
+    "id": "case_12_declines_one_day",
+    "contact_name": "Ứng viên đổi ngày",
+    "transcript": "HR: Thứ Hai anh đi phỏng vấn được không? Ứng viên: Thứ Hai anh không kịp xe, nhưng thứ Tư thì anh đi phỏng vấn được. Em nhắn Zalo để chốt giờ nhé.",
+    "expected_status_group": 4,
+    "expected_reason_code": "HEN_PHONG_VAN"
   }
 ]

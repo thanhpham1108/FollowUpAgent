@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import csv
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,7 @@ sys.path.append(str(PROJECT_ROOT))
 from app.services.llm_service import ClassificationNeedsReview
 
 DEFAULT_AUDIO_DIR = PROJECT_ROOT / "data/recordings_import/audio"
-DEFAULT_OUTPUT_CSV = PROJECT_ROOT / "data/recordings_import/ground_truth_review_713_v2.csv"
+DEFAULT_OUTPUT_CSV = PROJECT_ROOT / "data/recordings_import/ground_truth_review_713_v3.csv"
 DEFAULT_EXPECTED_COUNT = 713
 
 COLUMNS = [
@@ -113,12 +114,13 @@ async def main(
     mode = "a" if output_csv.exists() else "x"
     encoding = "utf-8" if mode == "a" else "utf-8-sig"
     error_csv = output_csv.with_name(f"{output_csv.stem}_error_log.csv")
+    trace_path = output_csv.with_name(f"{output_csv.stem}_decision_trace.jsonl")
     failures = 0
     consecutive_errors = 0
     done_before = sum(path.name in completed for path in wav_files)
     print(f"[*] {len(wav_files)} WAV; đã hoàn thành {done_before}; output: {output_csv}", flush=True)
 
-    with output_csv.open(mode, encoding=encoding, newline="") as handle:
+    with output_csv.open(mode, encoding=encoding, newline="") as handle, trace_path.open("a", encoding="utf-8") as trace_handle:
         writer = csv.writer(handle)
         if mode == "x":
             writer.writerow(COLUMNS)
@@ -129,6 +131,15 @@ async def main(
                 print(f"[{index}/{len(wav_files)}] Đã có: {wav_file.name}", flush=True)
                 continue
             print(f"[{index}/{len(wav_files)}] Đang phân tích: {wav_file.name}", flush=True)
+
+            def trace_event(event: dict) -> None:
+                trace_handle.write(json.dumps({
+                    "time": datetime.now().isoformat(timespec="seconds"),
+                    "file_name": wav_file.name,
+                    **event,
+                }, ensure_ascii=False) + "\n")
+                trace_handle.flush()
+
             try:
                 stt_result = transcribe_fn(wav_file)
                 transcript = stt_result["text"].strip()
@@ -136,6 +147,7 @@ async def main(
                     transcript,
                     contact_name="Ứng viên",
                     audio_duration_seconds=stt_result.get("duration_seconds"),
+                    trace_callback=trace_event,
                 )
                 writer.writerow([
                     wav_file.name,
@@ -161,11 +173,13 @@ async def main(
             except ClassificationNeedsReview as exc:
                 failures += 1
                 consecutive_errors = 0
+                trace_event({"event": "batch_error", "outcome": "needs_review", "error": str(exc)})
                 log_error(error_csv, wav_file.name, exc)
                 print(f"   -> CẦN NGHE LẠI: {exc}", file=sys.stderr, flush=True)
             except Exception as exc:
                 failures += 1
                 consecutive_errors += 1
+                trace_event({"event": "batch_error", "outcome": "error", "error": str(exc)})
                 print(f"   -> LỖI: {exc}", file=sys.stderr, flush=True)
                 if resume:
                     log_error(error_csv, wav_file.name, exc)

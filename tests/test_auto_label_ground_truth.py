@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -83,6 +84,37 @@ class AutoLabelTests(unittest.TestCase):
             self.assertEqual(len(rows), 3)
             self.assertEqual(len({row["File_Name"] for row in rows}), 3)
             self.assertEqual(rows[0]["Human_Status_Group (Điền tay)"], "2")
+
+    def test_trace_sidecar_keeps_decision_evidence_out_of_review_csv(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            audio_dir = root / "audio"
+            audio_dir.mkdir()
+            (audio_dir / "1.wav").write_bytes(b"audio")
+            output = root / "review.csv"
+
+            async def analyze(transcript, contact_name, **kwargs):
+                kwargs["trace_callback"]({
+                    "event": "model_response", "attempt": 1,
+                    "model": "test-model", "raw_response": '{"reason_code":"TRAO_DOI_THEM"}',
+                    "parsed": {"reason_code": "TRAO_DOI_THEM", "candidate_evidence": "Gửi Zalo anh xem"},
+                })
+                kwargs["trace_callback"]({"event": "final", "outcome": "accepted", "reason_code": "TRAO_DOI_THEM"})
+                return analysis_result()
+
+            assert asyncio.run(main(
+                audio_dir, output, expected_count=1,
+                transcribe_fn=lambda path: {"text": "Gửi Zalo anh xem"},
+                analyze_fn=analyze,
+            )) == 0
+            with output.open(encoding="utf-8-sig", newline="") as handle:
+                row = next(csv.DictReader(handle))
+            self.assertNotIn("candidate_evidence", row)
+            trace_path = root / "review_decision_trace.jsonl"
+            events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([event["event"] for event in events], ["model_response", "final"])
+            self.assertEqual(events[0]["file_name"], "1.wav")
+            self.assertNotIn("transcript", events[0])
 
     def test_expected_count_stops_before_loading_models_or_creating_csv(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -8,7 +8,7 @@ import re
 import unicodedata
 import httpx
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from app.core.config import settings
 from app.schemas.response import AnalysisResult
@@ -36,13 +36,10 @@ _REFUSAL_PATTERNS = (
     r"\bdung goi (?:nua|lai)\b",
     r"\btu choi (?:cong viec|loi moi|di lam)\b",
 )
-_EMPLOYED_PATTERNS = (r"\bdang di lam\b", r"\bdi lam roi\b", r"\bda co viec\b", r"\bdang lam\b")
-_DISENGAGED_PATTERNS = (r"\b(?:cup may|ngat may|ket thuc cuoc goi)\b", r"\bkhong muon trao doi tiep\b")
-_INTEREST_PATTERNS = (
-    r"\b(?:ung vien|anh|chi) hoi (?:ve|them)\b",
-    r"\b(?:ung vien|anh|chi) muon tim hieu\b",
-    r"\b(?:ung vien|anh|chi) quan tam\b",
-    r"\bdong y ket ban\b",
+_STOP_CONTACT_PATTERNS = (
+    r"\bdung (?:goi|lien he) (?:nua|lai)\b",
+    r"\b(?:khong|dung) (?:goi|lien he) (?:cho|voi) (?:anh|em|toi|minh) (?:nua|lai)\b",
+    r"\bkhong muon (?:duoc|bi) (?:goi|lien he) (?:nua|lai)\b",
 )
 _POSITIVE_PATTERNS = (
     r"\bdong y (?:nhan viec|di lam|den lam|den phong van)\b",
@@ -51,6 +48,24 @@ _POSITIVE_PATTERNS = (
     r"\bchot (?:lich phong van|ngay di lam|di lam)\b",
     r"\bhen phong van\b",
     r"\bmai (?:anh|em|minh) ra\b",
+)
+_SCHEDULE_ONLY_PATTERNS = (
+    r"\bkhong kip (?:xe|di|xuong|den)\b",
+    r"\bviec gia dinh\b",
+    r"\b(?:thu hai|thu ba|thu tu|thu nam|thu sau|hom nay|ngay mai|ngay \d{1,2})\b",
+    r"\bde (?:anh|em|minh) (?:xem|sap xep)\b",
+)
+_CONTINUATION_PATTERNS = (
+    r"\bco the (?:di|den|xuong|nhan viec)\b",
+    r"\b(?:hen|se) (?:goi|lien he) lai\b",
+    r"\bsau khi sap xep\b",
+    r"\bchua chot\b",
+)
+_UNCERTAIN_COMMITMENT_PATTERNS = (
+    r"\bco the\b",
+    r"\bchua (?:biet|chac|chot)\b",
+    r"\bde (?:anh|em|minh) (?:xem|sap xep)\b",
+    r"\b(?:hen|se) (?:goi|lien he) lai\b",
 )
 
 
@@ -81,17 +96,34 @@ def _needs_refusal_recheck(parsed: dict, transcript: str) -> bool:
         for pattern in _POSITIVE_PATTERNS
         for match in re.finditer(pattern, summary)
     )
-    if positive_summary or not _candidate_quote_is_supported(quote, transcript):
+    if (
+        positive_summary
+        or any(re.search(pattern, summary) for pattern in _CONTINUATION_PATTERNS)
+        or not _candidate_quote_is_supported(quote, transcript)
+    ):
         return True
-    if parsed.get("refusal_basis") == "employed_disengaged":
-        return (
-            not any(re.search(pattern, quote_text) for pattern in _EMPLOYED_PATTERNS)
-            or not any(re.search(pattern, summary) for pattern in _DISENGAGED_PATTERNS)
-            or any(re.search(pattern, summary) for pattern in _INTEREST_PATTERNS)
-        )
+    if parsed.get("refusal_basis") == "stop_contact":
+        return not any(re.search(pattern, quote_text) for pattern in _STOP_CONTACT_PATTERNS)
     if parsed.get("refusal_basis") == "explicit_job_refusal":
+        if any(re.search(pattern, quote_text) for pattern in _SCHEDULE_ONLY_PATTERNS):
+            return True
         return not any(re.search(pattern, quote_text) for pattern in _REFUSAL_PATTERNS)
     return True
+
+
+def _needs_success_recheck(parsed: dict, transcript: str) -> bool:
+    """Do not mark a conditional plan or a future callback as a confirmed start."""
+    if parsed.get("reason_code") != ReasonCode.DI_LAM.value:
+        return False
+    quote = parsed.get("candidate_evidence") or ""
+    if not _candidate_quote_is_supported(quote, transcript):
+        return True
+    evidence = _plain_text(quote)
+    summary = _plain_text(parsed.get("summary", ""))
+    if any(re.search(pattern, evidence) for pattern in _UNCERTAIN_COMMITMENT_PATTERNS):
+        return True
+    confirmed = any(re.search(pattern, evidence) for pattern in _POSITIVE_PATTERNS)
+    return not confirmed and any(re.search(pattern, summary) for pattern in _CONTINUATION_PATTERNS)
 
 
 def _appointment_date(parsed: dict, reason_code: ReasonCode) -> str | None:
@@ -124,7 +156,7 @@ _ANALYSIS_OUTPUT_SCHEMA = {
         "appointment_date": {"type": ["string", "null"]},
         "follow_up_days": {"type": ["integer", "null"]},
         "candidate_evidence": {"type": "string"},
-        "refusal_basis": {"type": "string", "enum": ["none", "explicit_job_refusal", "employed_disengaged"]},
+        "refusal_basis": {"type": "string", "enum": ["none", "explicit_job_refusal", "stop_contact"]},
     },
     "required": [
         "summary",
@@ -200,7 +232,10 @@ class LLMService:
         logger.error(f"Không thể bóc tách JSON từ response của LLM. Text gốc: {text[:300]}")
         return {}
 
-    async def _request_analysis(self, client: httpx.AsyncClient, payload: dict) -> dict:
+    async def _request_analysis(
+        self, client: httpx.AsyncClient, payload: dict, *,
+        trace_callback: Callable[[dict], None] | None = None, attempt: int = 1,
+    ) -> dict:
         endpoint = f"{settings.OLLAMA_API_BASE_URL}/chat/completions"
         response = await client.post(endpoint, json=payload)
         for response_format in ({"type": "json_object"}, None):
@@ -219,7 +254,14 @@ class LLMService:
             response = await client.post(endpoint, json=fallback_payload)
         response.raise_for_status()
         raw_text = response.json()["choices"][0]["message"]["content"]
-        return self._safe_parse_json(raw_text)
+        parsed = self._safe_parse_json(raw_text)
+        if trace_callback is not None:
+            trace_callback({
+                "event": "model_response", "attempt": attempt,
+                "model": payload.get("model"), "raw_response": raw_text,
+                "parsed": parsed,
+            })
+        return parsed
 
     async def analyze_audio(
         self,
@@ -229,6 +271,7 @@ class LLMService:
         *,
         reference_datetime: datetime | None = None,
         audio_duration_seconds: float | None = None,
+        trace_callback: Callable[[dict], None] | None = None,
     ) -> AnalysisResult:
         """
         Xử lý phân tích dữ liệu bằng cách gửi HTTP Request tới Ollama
@@ -279,9 +322,31 @@ class LLMService:
 
             # Gửi HTTP Request bất đồng bộ (Tăng timeout lên 300s để phòng hờ Ollama load model lần đầu quá lâu)
             async with httpx.AsyncClient(timeout=300.0) as client:
-                parsed_data = await self._request_analysis(client, payload)
-                if _needs_refusal_recheck(parsed_data, transcript):
-                    logger.warning("TU_CHOI_LUON thiếu bằng chứng hoặc mâu thuẫn summary; phân loại lại một lần.")
+                parsed_data = await self._request_analysis(
+                    client, payload, trace_callback=trace_callback, attempt=1,
+                )
+                refusal_needs_recheck = _needs_refusal_recheck(parsed_data, transcript)
+                success_needs_recheck = _needs_success_recheck(parsed_data, transcript)
+                if trace_callback is not None:
+                    trace_callback({
+                        "event": "guard", "attempt": 1,
+                        "refusal_needs_recheck": refusal_needs_recheck,
+                        "success_needs_recheck": success_needs_recheck,
+                    })
+                if refusal_needs_recheck or success_needs_recheck:
+                    logger.warning("Reason code thiếu bằng chứng hoặc mâu thuẫn summary; phân loại lại một lần.")
+                    correction = (
+                        "Kết quả trước chọn TU_CHOI_LUON. Chỉ giữ mã đó nếu ỨNG VIÊN "
+                        "từ chối chính công việc hoặc yêu cầu không liên hệ nữa. "
+                        "Không kịp xe, bận việc gia đình, hoãn lịch phỏng vấn nhưng hẹn "
+                        "liên hệ lại không phải từ chối công việc."
+                        if refusal_needs_recheck else
+                        "Kết quả trước chọn DI_LAM nhưng bằng chứng hoặc summary còn điều kiện. "
+                        "'Có thể đi trước ngày 15' rồi hẹn gọi lại ngày 13/14 chưa phải "
+                        "xác nhận sẽ đi làm. Nếu ứng viên sẵn sàng phỏng vấn nhưng cần "
+                        "đổi lịch, chọn HEN_PHONG_VAN với appointment_date=null. Chỉ "
+                        "chọn HEN_XA khi chưa rõ thiện chí phỏng vấn."
+                    )
                     retry_payload = {
                         **payload,
                         "messages": [
@@ -289,22 +354,27 @@ class LLMService:
                             {
                                 "role": "user",
                                 "content": (
-                                    "Kiểm tra lại kết luận trước khi trả JSON. Kết quả trước chọn "
-                                    "TU_CHOI_LUON nhưng thiếu câu nói của ứng viên hoặc summary "
-                                    "có dấu hiệu tích cực. Trích đúng câu nói của ỨNG VIÊN vào "
-                                    "candidate_evidence; chỉ giữ TU_CHOI_LUON khi từ chối CÔNG VIỆC "
-                                    "hoặc đang làm nơi khác và chủ động kết thúc trao đổi. "
-                                    "Nếu còn quan tâm khi đang đi làm nơi khác: DANG_DI_LAM. "
-                                    "Nếu sẵn sàng đi làm: DI_LAM. Nếu lưỡng lự: SUY_NGHI_THEM. "
-                                    "Phân tích lại toàn bộ transcript và trả JSON đúng schema."
+                                    "Kiểm tra lại kết luận trước khi trả JSON. " + correction +
+                                    " Trích đúng lời ỨNG VIÊN vào candidate_evidence; "
+                                    "phân tích lại toàn bộ transcript và trả JSON đúng schema."
                                 ),
                             },
                         ],
                     }
-                    parsed_data = await self._request_analysis(client, retry_payload)
-                    if _needs_refusal_recheck(parsed_data, transcript):
+                    parsed_data = await self._request_analysis(
+                        client, retry_payload, trace_callback=trace_callback, attempt=2,
+                    )
+                    retry_refusal = _needs_refusal_recheck(parsed_data, transcript)
+                    retry_success = _needs_success_recheck(parsed_data, transcript)
+                    if trace_callback is not None:
+                        trace_callback({
+                            "event": "guard", "attempt": 2,
+                            "refusal_needs_recheck": retry_refusal,
+                            "success_needs_recheck": retry_success,
+                        })
+                    if retry_refusal or retry_success:
                         raise ClassificationNeedsReview(
-                            "Không đủ bằng chứng để đóng hồ sơ bằng TU_CHOI_LUON; "
+                            "Không đủ bằng chứng để chốt TU_CHOI_LUON hoặc DI_LAM; "
                             "cần người nghe kiểm tra audio."
                         )
 
@@ -318,8 +388,7 @@ class LLMService:
                 )
             status_group = REASON_CODE_GROUP[reason_code]
             call_decision = GROUP_CALL_DECISION[status_group]
-
-            return AnalysisResult(
+            result = AnalysisResult(
                 summary=parsed_data.get("summary") or "Không có tóm tắt.",
                 status_group=status_group,
                 reason_code=reason_code,
@@ -327,11 +396,21 @@ class LLMService:
                 appointment_date=_appointment_date(parsed_data, reason_code),
                 follow_up_days=_follow_up_days(parsed_data, reason_code),
             )
+            if trace_callback is not None:
+                trace_callback({
+                    "event": "final", "outcome": "accepted",
+                    "reason_code": result.reason_code.value,
+                    "status_group": result.status_group,
+                    "call_decision": result.call_decision.value,
+                })
+            return result
 
         except httpx.RequestError as e:
             logger.error(f"Lỗi kết nối tới Ollama: {e}")
             raise LLMProcessingError(f"Không thể kết nối tới Ollama API: {e}")
-        except LLMProcessingError:
+        except LLMProcessingError as e:
+            if trace_callback is not None:
+                trace_callback({"event": "final", "outcome": "review_or_error", "error": str(e)})
             raise
         except Exception as e:
             import traceback

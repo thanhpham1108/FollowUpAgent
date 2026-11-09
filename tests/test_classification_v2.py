@@ -14,11 +14,12 @@ llm_module = importlib.import_module("app.services.llm_service")
 
 def test_canonical_codes_and_output_invariants():
     assert "CHUA_CHOT_NGAY" not in ReasonCode.__members__
-    assert REASON_CODE_GROUP[ReasonCode.DANG_DI_LAM] == 3
+    assert "DANG_DI_LAM" not in ReasonCode.__members__
+    assert REASON_CODE_GROUP[ReasonCode.TRAO_DOI_THEM] == 3
     result = AnalysisResult(
         summary="Ứng viên đang đi làm nơi khác nhưng hỏi về công việc.",
         status_group=1,
-        reason_code=ReasonCode.DANG_DI_LAM,
+        reason_code=ReasonCode.TRAO_DOI_THEM,
         appointment_date="2026-11-09",
         follow_up_days=14,
     )
@@ -46,6 +47,61 @@ def test_refusal_requires_candidate_evidence_not_hr_negation():
     }
     assert not llm_module._needs_refusal_recheck(
         real, "[00:01] Ứng viên: Anh không có nhu cầu."
+    )
+
+    employed_only = {
+        "reason_code": "TU_CHOI_LUON",
+        "summary": "Ứng viên đang đi làm nơi khác, nghe tư vấn rồi kết thúc cuộc gọi.",
+        "candidate_evidence": "Anh đang đi làm rồi",
+        "refusal_basis": "explicit_job_refusal",
+    }
+    assert llm_module._needs_refusal_recheck(
+        employed_only, "Ứng viên: Anh đang đi làm rồi"
+    )
+    stop_contact = {
+        "reason_code": "TU_CHOI_LUON",
+        "summary": "Ứng viên yêu cầu không liên hệ nữa.",
+        "candidate_evidence": "Đừng gọi cho anh nữa",
+        "refusal_basis": "stop_contact",
+    }
+    assert not llm_module._needs_refusal_recheck(
+        stop_contact, "Ứng viên: Đừng gọi cho anh nữa"
+    )
+
+
+def test_declining_monday_interview_is_not_job_refusal_or_confirmed_start():
+    transcript = (
+        "HR: Thứ Hai anh có rảnh đi phỏng vấn không? "
+        "Ứng viên: Anh không đi làm thứ Hai được vì việc gia đình, không kịp xe. "
+        "Có thể anh đi trước ngày 15. "
+        "HR: Ngày 13 hoặc 14 em gọi lại nhé. Ứng viên: Ok em."
+    )
+    wrong_refusal = {
+        "reason_code": "TU_CHOI_LUON",
+        "summary": "Ứng viên không đi thứ Hai vì việc gia đình, hẹn gọi lại ngày 13/14.",
+        "candidate_evidence": "Anh không đi làm thứ Hai được vì việc gia đình",
+        "refusal_basis": "explicit_job_refusal",
+    }
+    assert llm_module._needs_refusal_recheck(wrong_refusal, transcript)
+
+    premature_success = {
+        "reason_code": "DI_LAM",
+        "summary": "Ứng viên có thể đi trước ngày 15, HR sẽ liên hệ lại ngày 13/14.",
+        "candidate_evidence": "Có thể anh đi trước ngày 15",
+    }
+    assert llm_module._needs_success_recheck(premature_success, transcript)
+
+    confirmed_success = {
+        "reason_code": "DI_LAM",
+        "summary": "Ứng viên xác nhận sẽ đến nhà máy làm việc vào ngày mai.",
+        "candidate_evidence": "Mai anh ra nhà máy đi làm",
+    }
+    assert not llm_module._needs_success_recheck(
+        confirmed_success, "Ứng viên: Mai anh ra nhà máy đi làm"
+    )
+    confirmed_success["summary"] += " HR sẽ liên hệ lại qua Zalo để hướng dẫn đường đi."
+    assert not llm_module._needs_success_recheck(
+        confirmed_success, "Ứng viên: Mai anh ra nhà máy đi làm"
     )
 
 
@@ -103,6 +159,116 @@ def test_llm_prompt_uses_server_date_and_rejects_long_knm():
                 reference_datetime=datetime(2026, 11, 8, tzinfo=timezone.utc),
                 audio_duration_seconds=20,
             ))
+
+
+def test_conditional_start_is_rechecked_as_interview_willingness():
+    answers = [
+        {
+            "summary": "Ứng viên có thể đi trước ngày 15, hẹn gọi lại ngày 13/14.",
+            "reason_code": "DI_LAM",
+            "appointment_date": None,
+            "follow_up_days": None,
+            "candidate_evidence": "Có thể anh đi trước ngày 15",
+            "refusal_basis": "none",
+        },
+        {
+            "summary": "Ứng viên bận việc gia đình và không kịp xe thứ Hai. Anh nói 'Có thể anh đi trước ngày 15' nhưng chưa xác nhận ngày đi làm. HR đã tư vấn việc làm và hẹn gọi lại ngày 13 hoặc 14 để thống nhất. Hai bên đã có Zalo để trao đổi tiếp.",
+            "reason_code": "HEN_PHONG_VAN",
+            "appointment_date": None,
+            "follow_up_days": None,
+            "candidate_evidence": "Có thể anh đi trước ngày 15",
+            "refusal_basis": "none",
+        },
+    ]
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        def __init__(self, content):
+            self.content = content
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": json.dumps(self.content)}}]}
+
+    class Client:
+        def __init__(self, timeout):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def post(self, url, json):
+            return Response(answers.pop(0))
+
+    transcript = "HR: Thứ Hai anh đi phỏng vấn được không? Ứng viên: Có thể anh đi trước ngày 15. HR: Ngày 13/14 em gọi lại. Ứng viên: Ok em."
+    trace = []
+    with patch.object(llm_module.httpx, "AsyncClient", Client):
+        result = asyncio.run(llm_module.llm_service.analyze_audio(
+            transcript, "Ứng viên", trace_callback=trace.append,
+        ))
+    assert not answers
+    assert result.reason_code == ReasonCode.HEN_PHONG_VAN
+    assert result.status_group == 4
+    assert result.appointment_date is None
+    assert result.follow_up_days is None
+    assert [entry["event"] for entry in trace] == [
+        "model_response", "guard", "model_response", "guard", "final",
+    ]
+    assert [entry["attempt"] for entry in trace if entry["event"] == "model_response"] == [1, 2]
+    assert trace[0]["parsed"]["reason_code"] == "DI_LAM"
+    assert trace[2]["parsed"]["reason_code"] == "HEN_PHONG_VAN"
+    assert trace[-1]["outcome"] == "accepted"
+
+
+def test_refusal_guard_keeps_ambiguous_retry_for_manual_review():
+    answer = {
+        "summary": "Ứng viên đang làm nơi khác, hỏi lương và nhận thông tin qua Zalo.",
+        "reason_code": "TU_CHOI_LUON",
+        "appointment_date": None,
+        "follow_up_days": None,
+        "candidate_evidence": "Anh đang đi làm rồi",
+        "refusal_basis": "explicit_job_refusal",
+    }
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": json.dumps(answer)}}]}
+
+    class Client:
+        def __init__(self, timeout):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def post(self, url, json):
+            return Response()
+
+    trace = []
+    with patch.object(llm_module.httpx, "AsyncClient", Client):
+        with pytest.raises(llm_module.ClassificationNeedsReview):
+            asyncio.run(llm_module.llm_service.analyze_audio(
+                "Ứng viên: Anh đang đi làm rồi, gửi Zalo anh xem thêm.",
+                "Ứng viên", trace_callback=trace.append,
+            ))
+    assert sum(entry["event"] == "model_response" for entry in trace) == 2
+    assert trace[-1]["outcome"] == "review_or_error"
 
 
 def test_ollama_schema_fallback_uses_openai_compatible_json_mode():
