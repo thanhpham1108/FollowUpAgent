@@ -48,6 +48,11 @@ def test_refusal_requires_candidate_evidence_not_hr_negation():
     assert not llm_module._needs_refusal_recheck(
         real, "[00:01] Ứng viên: Anh không có nhu cầu."
     )
+    assert llm_module._needs_refusal_recheck(
+        real,
+        "[00:01] Ứng viên: Anh không có nhu cầu. "
+        "[00:15] Ứng viên: Mai anh ra nhà máy để đi làm.",
+    )
 
     employed_only = {
         "reason_code": "TU_CHOI_LUON",
@@ -227,7 +232,7 @@ def test_conditional_start_is_rechecked_as_interview_willingness():
     assert trace[-1]["outcome"] == "accepted"
 
 
-def test_refusal_guard_keeps_ambiguous_retry_for_manual_review():
+def test_refusal_guard_keeps_ambiguous_retry_in_follow_up_with_review_flag():
     answer = {
         "summary": "Ứng viên đang làm nơi khác, hỏi lương và nhận thông tin qua Zalo.",
         "reason_code": "TU_CHOI_LUON",
@@ -262,13 +267,43 @@ def test_refusal_guard_keeps_ambiguous_retry_for_manual_review():
 
     trace = []
     with patch.object(llm_module.httpx, "AsyncClient", Client):
-        with pytest.raises(llm_module.ClassificationNeedsReview):
-            asyncio.run(llm_module.llm_service.analyze_audio(
-                "Ứng viên: Anh đang đi làm rồi, gửi Zalo anh xem thêm.",
-                "Ứng viên", trace_callback=trace.append,
-            ))
+        result = asyncio.run(llm_module.llm_service.analyze_audio(
+            "Ứng viên: Anh đang đi làm rồi, gửi Zalo anh xem thêm.",
+            "Ứng viên", trace_callback=trace.append,
+        ))
     assert sum(entry["event"] == "model_response" for entry in trace) == 2
-    assert trace[-1]["outcome"] == "review_or_error"
+    assert result.reason_code == ReasonCode.TRAO_DOI_THEM
+    assert result.call_decision.value == "FOLLOW_UP"
+    assert "cần nghe lại" in result.summary.lower()
+    assert "từ chối công việc" not in result.summary.lower()
+    assert trace[-2]["event"] == "fallback"
+    assert trace[-2]["requires_review"] is True
+    assert trace[-1]["outcome"] == "accepted"
+    assert trace[-1]["requires_review"] is True
+
+
+def test_truncated_model_json_is_reported_before_reason_guard():
+    class Response:
+        status_code = 200
+        text = ""
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"reason_code": "TU_CHOI_LUON"'}}]}
+
+    class Client:
+        async def post(self, url, json):
+            return Response()
+
+    trace = []
+    with pytest.raises(llm_module.LLMProcessingError, match="JSON không hợp lệ"):
+        asyncio.run(llm_module.llm_service._request_analysis(
+            Client(), {}, trace_callback=trace.append,
+        ))
+    assert trace[0]["event"] == "model_response"
+    assert trace[0]["parsed"] == {}
 
 
 def test_ollama_schema_fallback_uses_openai_compatible_json_mode():

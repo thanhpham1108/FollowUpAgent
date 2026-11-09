@@ -102,6 +102,14 @@ def _needs_refusal_recheck(parsed: dict, transcript: str) -> bool:
         or not _candidate_quote_is_supported(quote, transcript)
     ):
         return True
+    source_text = _plain_text(transcript)
+    quote_start = source_text.find(quote_text)
+    if quote_start < 0:
+        return True
+    quote_end = quote_start + len(quote_text)
+    later_text = source_text[quote_end:]
+    if any(re.search(pattern, later_text) for pattern in (*_POSITIVE_PATTERNS, *_CONTINUATION_PATTERNS)):
+        return True
     if parsed.get("refusal_basis") == "stop_contact":
         return not any(re.search(pattern, quote_text) for pattern in _STOP_CONTACT_PATTERNS)
     if parsed.get("refusal_basis") == "explicit_job_refusal":
@@ -261,6 +269,11 @@ class LLMService:
                 "model": payload.get("model"), "raw_response": raw_text,
                 "parsed": parsed,
             })
+        if not isinstance(parsed, dict) or not parsed.get("reason_code"):
+            raise LLMProcessingError(
+                "Ollama trả JSON không hợp lệ hoặc thiếu reason_code; "
+                "response có thể đã bị cắt giữa chừng."
+            )
         return parsed
 
     async def analyze_audio(
@@ -321,6 +334,7 @@ class LLMService:
             }
 
             # Gửi HTTP Request bất đồng bộ (Tăng timeout lên 300s để phòng hờ Ollama load model lần đầu quá lâu)
+            fell_back_to_follow_up = False
             async with httpx.AsyncClient(timeout=300.0) as client:
                 parsed_data = await self._request_analysis(
                     client, payload, trace_callback=trace_callback, attempt=1,
@@ -336,16 +350,19 @@ class LLMService:
                 if refusal_needs_recheck or success_needs_recheck:
                     logger.warning("Reason code thiếu bằng chứng hoặc mâu thuẫn summary; phân loại lại một lần.")
                     correction = (
-                        "Kết quả trước chọn TU_CHOI_LUON. Chỉ giữ mã đó nếu ỨNG VIÊN "
-                        "từ chối chính công việc hoặc yêu cầu không liên hệ nữa. "
-                        "Không kịp xe, bận việc gia đình, hoãn lịch phỏng vấn nhưng hẹn "
-                        "liên hệ lại không phải từ chối công việc."
+                        "Đọc lại transcript từ đầu và xác định lời cuối của ỨNG VIÊN. "
+                        "Chỉ chọn TU_CHOI_LUON nếu trích được nguyên văn lời họ "
+                        "từ chối chính cơ hội việc làm hoặc yêu cầu ngừng liên hệ. "
+                        "Phân biệt lời từ chối với việc hoãn lịch, khó đi lại và "
+                        "công việc đã nghỉ. Nếu thiếu lời từ chối rõ mà vẫn trao đổi "
+                        "việc làm, chọn mã theo mức thiện chí; không suy diễn từ "
+                        "nơi từng làm hoặc một lời phủ định riêng lẻ."
                         if refusal_needs_recheck else
-                        "Kết quả trước chọn DI_LAM nhưng bằng chứng hoặc summary còn điều kiện. "
-                        "'Có thể đi trước ngày 15' rồi hẹn gọi lại ngày 13/14 chưa phải "
-                        "xác nhận sẽ đi làm. Nếu ứng viên sẵn sàng phỏng vấn nhưng cần "
-                        "đổi lịch, chọn HEN_PHONG_VAN với appointment_date=null. Chỉ "
-                        "chọn HEN_XA khi chưa rõ thiện chí phỏng vấn."
+                        "Đọc lại transcript từ đầu. Phân biệt ứng viên xác nhận "
+                        "sẽ đến nhận việc với một khả năng còn điều kiện hoặc "
+                        "lời HR đề xuất. Nếu ứng viên sẵn sàng phỏng vấn nhưng cần "
+                        "đổi lịch, chọn HEN_PHONG_VAN với appointment_date=null. "
+                        "Chỉ chọn HEN_XA khi chưa rõ thiện chí phỏng vấn."
                     )
                     retry_payload = {
                         **payload,
@@ -372,10 +389,32 @@ class LLMService:
                             "refusal_needs_recheck": retry_refusal,
                             "success_needs_recheck": retry_success,
                         })
-                    if retry_refusal or retry_success:
+                    if retry_refusal:
+                        fell_back_to_follow_up = True
+                        logger.warning("Không xác minh được lời từ chối; giữ ứng viên trong luồng follow-up để nghe lại.")
+                        if trace_callback is not None:
+                            trace_callback({
+                                "event": "fallback", "attempt": 2,
+                                "from_reason_code": ReasonCode.TU_CHOI_LUON.value,
+                                "reason_code": ReasonCode.TRAO_DOI_THEM.value,
+                                "requires_review": True,
+                                "reason": "Không xác minh được lời ứng viên từ chối công việc hoặc ngừng liên hệ.",
+                            })
+                        parsed_data = {
+                            "reason_code": ReasonCode.TRAO_DOI_THEM.value,
+                            "summary": (
+                                "Cần nghe lại audio để xác định quyết định cuối của ứng viên. "
+                                "Chưa xác minh được lời từ chối cơ hội việc làm hoặc yêu cầu ngừng liên hệ. "
+                                "HR tiếp tục liên hệ để xác nhận nhu cầu và lịch phù hợp."
+                            ),
+                            "appointment_date": None,
+                            "follow_up_days": None,
+                            "candidate_evidence": "",
+                            "refusal_basis": "none",
+                        }
+                    elif retry_success:
                         raise ClassificationNeedsReview(
-                            "Không đủ bằng chứng để chốt TU_CHOI_LUON hoặc DI_LAM; "
-                            "cần người nghe kiểm tra audio."
+                            "Không đủ bằng chứng để chốt DI_LAM; cần người nghe kiểm tra audio."
                         )
 
             # Chỉ suy ra hành động sau khi phân loại vượt qua kiểm tra từ chối.
@@ -402,6 +441,7 @@ class LLMService:
                     "reason_code": result.reason_code.value,
                     "status_group": result.status_group,
                     "call_decision": result.call_decision.value,
+                    "requires_review": fell_back_to_follow_up,
                 })
             return result
 

@@ -53,7 +53,7 @@ def read_completed(output_csv: Path) -> set[str]:
 
 
 def log_error(error_csv: Path, file_name: str, error: Exception) -> None:
-    """Keep a historical error log; missing success rows are retried on resume."""
+    """Keep a historical error/review log; missing success rows are retried on resume."""
     exists = error_csv.exists()
     with error_csv.open("a" if exists else "x", encoding="utf-8" if exists else "utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
@@ -117,6 +117,7 @@ async def main(
     error_csv = output_csv.with_name(f"{output_csv.stem}_error_log.csv")
     trace_path = output_csv.with_name(f"{output_csv.stem}_decision_trace.jsonl")
     failures = 0
+    fallback_reviews = 0
     consecutive_errors = 0
     done_before = sum(path.name in completed for path in wav_files)
     print(f"[*] {len(wav_files)} WAV; đã hoàn thành {done_before}; output: {output_csv}", flush=True)
@@ -132,8 +133,12 @@ async def main(
                 print(f"[{index}/{len(wav_files)}] Đã có: {wav_file.name}", flush=True)
                 continue
             print(f"[{index}/{len(wav_files)}] Đang phân tích: {wav_file.name}", flush=True)
+            needs_review_fallback = False
 
             def trace_event(event: dict) -> None:
+                nonlocal needs_review_fallback
+                if event.get("event") == "fallback" and event.get("requires_review"):
+                    needs_review_fallback = True
                 trace_handle.write(json.dumps({
                     "time": datetime.now().isoformat(timespec="seconds"),
                     "file_name": wav_file.name,
@@ -165,6 +170,15 @@ async def main(
                 handle.flush()
                 completed.add(wav_file.name)
                 consecutive_errors = 0
+                if needs_review_fallback:
+                    fallback_reviews += 1
+                    log_error(
+                        error_csv, wav_file.name,
+                        ClassificationNeedsReview(
+                            "Nhãn tạm TRAO_DOI_THEM: lời từ chối chưa được xác minh; cần nghe lại audio."
+                        ),
+                    )
+                    print(f"   -> NHÃN TẠM: {wav_file.name} cần nghe lại audio.", flush=True)
                 print(
                     f"   -> Nhóm {analysis.status_group} ({analysis.reason_code}) | "
                     f"Quyết định: {analysis.call_decision}",
@@ -192,7 +206,10 @@ async def main(
                     break
 
     done = sum(path.name in completed for path in wav_files)
-    print(f"[+] Hoàn thành {done}/{len(wav_files)} WAV; lỗi lượt này: {failures}; CSV: {output_csv}")
+    print(
+        f"[+] Hoàn thành {done}/{len(wav_files)} WAV; lỗi lượt này: {failures}; "
+        f"nhãn tạm cần nghe lại: {fallback_reviews}; CSV: {output_csv}"
+    )
     return 0 if done == len(wav_files) and failures == 0 else 1
 
 

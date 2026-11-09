@@ -116,6 +116,39 @@ class AutoLabelTests(unittest.TestCase):
             self.assertEqual(events[0]["file_name"], "1.wav")
             self.assertNotIn("transcript", events[0])
 
+    def test_fallback_is_saved_for_follow_up_and_logged_for_human_review(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            audio_dir = root / "audio"
+            audio_dir.mkdir()
+            (audio_dir / "1.wav").write_bytes(b"audio")
+            output = root / "review.csv"
+
+            async def analyze(transcript, contact_name, **kwargs):
+                kwargs["trace_callback"]({
+                    "event": "fallback", "reason_code": "TRAO_DOI_THEM",
+                    "requires_review": True,
+                })
+                return SimpleNamespace(
+                    status_group=3, reason_code="TRAO_DOI_THEM",
+                    call_decision="FOLLOW_UP", appointment_date=None,
+                    follow_up_days=None, summary="Cần nghe lại audio.",
+                )
+
+            assert asyncio.run(main(
+                audio_dir, output, expected_count=1,
+                transcribe_fn=lambda path: {"text": "Anh đang đi làm rồi"},
+                analyze_fn=analyze,
+            )) == 0
+            with output.open(encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(rows[0]["AI_Reason_Code"], "TRAO_DOI_THEM")
+            self.assertEqual(rows[0]["AI_Call_Decision"], "FOLLOW_UP")
+            with (root / "review_error_log.csv").open(encoding="utf-8-sig", newline="") as handle:
+                review_rows = list(csv.DictReader(handle))
+            self.assertEqual(review_rows[0]["File_Name"], "1.wav")
+            self.assertIn("Nhãn tạm", review_rows[0]["Error"])
+
     def test_expected_count_stops_before_loading_models_or_creating_csv(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

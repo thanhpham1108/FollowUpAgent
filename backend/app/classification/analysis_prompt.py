@@ -12,7 +12,7 @@ except ImportError:
     _PARKS = "Quang Châu, Vân Trung, Quế Võ, VSIP, Tràng Duệ"
 
 _RULES = {
-    ReasonCode.DI_LAM: "Ứng viên thể hiện rõ đã sẵn sàng đi làm/nhận việc/đến nhà máy để đi làm; không cần HR xác nhận lại. 'Có thể đi', 'để sắp xếp đã' hoặc hẹn gọi lại trước khi quyết định chưa phải chốt đi làm. Nếu đang thiếu giấy tờ bắt buộc thì dùng CHO_GIAY_TO.",
+    ReasonCode.DI_LAM: "Ứng viên xác nhận sẽ nhận việc hoặc chủ động nói sẽ đến nhà máy để bắt đầu làm, kể cả ngày cụ thể sẽ nhắn qua Zalo; không cần HR xác nhận lại. Một khả năng còn điều kiện hoặc lời HR đề xuất chưa phải quyết định của ứng viên. Nếu đang thiếu giấy tờ bắt buộc thì dùng CHO_GIAY_TO.",
     ReasonCode.HEN_PHONG_VAN: "Ứng viên thể hiện rõ thiện chí và sẵn sàng đi phỏng vấn, kể cả khi còn phải sắp xếp hoặc đổi lịch. Chưa cần chốt ngày; HR sẽ liên hệ để chọn ngày. appointment_date chỉ điền khi hai bên xác nhận ngày phỏng vấn.",
     ReasonCode.TRAO_DOI_THEM: "Hai bên đã trao đổi công việc nhưng ứng viên chưa đồng ý phỏng vấn, chưa sẵn sàng đi làm, chưa từ chối và cũng không nói cần suy nghĩ. Đồng ý kết bạn Zalo/Facebook chỉ để nhận thông tin vẫn thuộc mã này. Đang làm nơi khác chỉ là bối cảnh, không phải reason code.",
     ReasonCode.CHO_GIAY_TO: "Ứng viên muốn tiếp tục nhưng đang chờ CCCD, giấy khám sức khỏe hoặc hồ sơ cần thiết; theo dõi giấy tờ trước khi chốt đi làm.",
@@ -23,7 +23,7 @@ _RULES = {
     ReasonCode.LOI_AM_THANH: "Audio dài nhưng rè, mất tiếng hoặc transcript vô nghĩa khiến không hiểu được nội dung.",
     ReasonCode.KNM_DAP_MAY: "Cuộc gọi dưới 15 giây, ứng viên chủ động cúp ngay sau lời chào, không hẹn gọi lại. Nếu không chắc ai cúp, không chọn mã này.",
     ReasonCode.SAI_SO_NHAM_SO: "Người nghe xác nhận nhầm người hoặc nhầm số.",
-    ReasonCode.TU_CHOI_LUON: "Chỉ dùng khi ứng viên nói rõ từ chối chính công việc/cơ hội tuyển dụng hoặc yêu cầu không liên hệ nữa. Đang làm nơi khác, nghe rồi kết thúc cuộc gọi, từ chối một lịch phỏng vấn, không kịp xe, việc gia đình, giấy tờ hay phương tiện không đủ để đóng hồ sơ.",
+    ReasonCode.TU_CHOI_LUON: "Chỉ dùng khi lời cuối của ứng viên từ chối rõ chính cơ hội việc làm hoặc yêu cầu ngừng liên hệ. Phải trích được nguyên văn lời ứng viên nói về việc đó. Đang làm nơi khác, kết thúc cuộc gọi, từ chối một lịch, một phương tiện, một nhà máy hoặc còn việc gia đình không đủ để đóng hồ sơ.",
 }
 assert set(_RULES) == set(ReasonCode)
 
@@ -34,7 +34,7 @@ _REASON_GUIDE = "\n".join(
 
 HR_ANALYSIS_TEMPLATE = _REASON_GUIDE + """
 
-Bạn phân tích cuộc gọi tuyển công nhân. Quyết định CUỐI CÙNG của ỨNG VIÊN quyết định reason_code.
+Bạn phân tích cuộc gọi tuyển công nhân. Chỉ dùng thông tin trong transcript của cuộc gọi này.
 Tên ứng viên: {contact_name}
 Thời điểm phân tích ở Việt Nam: {current_date} ({current_weekday}).
 Ngày mai: {tomorrow_date}; ngày kia: {day_after_tomorrow};
@@ -43,59 +43,51 @@ Thời lượng audio: {audio_duration_seconds} giây.
 Doanh nghiệp đối tác: """ + _COMPANIES + """
 Khu công nghiệp: """ + _PARKS + """
 Transcript chép liền mạch, chưa xác định người nói. HR thường giới thiệu và hỏi
-trước, ứng viên thường trả lời. Nhưng ứng viên cũng có thể hỏi về lương, đường đi,
-nhà máy hoặc Zalo; không tự gán mọi câu hỏi cho HR. Dựa vào mạch hỏi-đáp và cách
-xưng hô để xác định ai nói; nếu không chắc, không gán lời HR cho ứng viên.
+trước, ứng viên thường trả lời nhưng cũng có thể hỏi lại. Dựa vào mạch hỏi-đáp,
+cách xưng hô và đoạn cuối để suy ra vai nói; nếu không chắc, không gán lời HR
+cho ứng viên. Không biến lời HR đề xuất thành quyết định của ứng viên.
 Transcript:
 \"\"\"
 {context_data}
 \"\"\"
 
-Quy tắc:
-1. TRAO_DOI_THEM khi chỉ trao đổi thông tin, kể cả đồng ý kết bạn Zalo/Facebook;
-   SUY_NGHI_THEM khi ứng viên nói rõ cần cân nhắc. Nếu ứng viên đang làm nơi khác,
-   ghi tình trạng đó và mức quan tâm vào summary, rồi chọn mã theo quyết định cuối.
-2. Không coi việc cuộc gọi kết thúc hoặc ứng viên đang làm nơi khác là lời từ chối.
-   Nếu ứng viên nghe tư vấn mà không có cam kết hoặc lời từ chối: TRAO_DOI_THEM.
-3. Từ "không" chỉ là từ chối việc làm khi nó nói về công việc/tiếp tục liên hệ.
-   "Không đi xe máy", "không làm ca đêm", "không kịp xe thứ Hai" hoặc từ chối
-   một lịch phỏng vấn/nhà máy riêng không tự động là TU_CHOI_LUON.
-   Xác định đối tượng bị từ chối và đọc tiếp toàn bộ cuộc gọi trước khi chốt.
-4. Có thiện chí rõ và sẵn sàng phỏng vấn: HEN_PHONG_VAN, kể cả khi phải hoãn
-   lịch đề xuất hoặc ngày sẽ chốt sau qua Zalo. Không đòi hỏi ứng viên nói đúng
-   chữ "đồng ý" nếu toàn bộ đối thoại cho thấy họ sẵn sàng phỏng vấn.
-   appointment_date chỉ chứa YYYY-MM-DD khi hai bên xác nhận NGÀY phỏng vấn;
+Trước khi chọn reason_code, tự kiểm tra theo thứ tự (không in các bước suy luận):
+1. Xác định các câu của ứng viên và quyết định CUỐI CÙNG của họ. Nếu họ từng
+   nói chưa đi được nhưng sau đó nói sẽ đi, lấy ý định sau cùng. Phân biệt
+   công việc hiện tại với công việc đã nghỉ; không suy ra ý định từ nơi từng làm.
+2. Nếu thấy từ phủ định, xác định chính xác đối tượng bị từ chối: công việc,
+   tiếp tục liên hệ, hay chỉ là ngày phỏng vấn, phương tiện, ca làm, giấy tờ,
+   nhà máy cụ thể. Chỉ hai đối tượng đầu có thể là TU_CHOI_LUON.
+3. TU_CHOI_LUON cần đồng thời: lời từ chối rõ của ứng viên trong transcript,
+   đúng đối tượng là cơ hội việc làm hoặc liên hệ tiếp, và không có quyết định
+   tiếp tục trao đổi/đi làm ở đoạn sau. Thiếu bất kỳ điều kiện nào thì không
+   chọn TU_CHOI_LUON; tuyệt đối không dùng suy đoán từ summary làm bằng chứng.
+4. Ứng viên xác nhận sẽ đến nhận việc/đi làm thì DI_LAM. Nếu thể hiện rõ
+   sẵn sàng đi phỏng vấn thì HEN_PHONG_VAN, kể cả khi còn phải đổi ngày hoặc
+   chốt ngày sau qua Zalo. Chỉ hẹn Zalo để xem thông tin, chưa nói sẽ phỏng vấn
+   hay đi làm thì TRAO_DOI_THEM. Nếu nói rõ cần cân nhắc thì SUY_NGHI_THEM.
+   Chọn các mã còn lại theo định nghĩa ở trên. Đang làm nơi khác không tự nó
+   là lời từ chối. Khi không đủ căn cứ để khẳng định từ chối hay cam kết nhưng
+   hai bên vẫn trao đổi việc làm, dùng TRAO_DOI_THEM.
+5. candidate_evidence là một đoạn NGẮN, chép nguyên văn từ transcript,
+   tối đa 30 từ, do ứng viên nói và trực tiếp chứng minh mã đã chọn. Không
+   ghép lời từ hai vị trí, không chép câu ví dụ/quy tắc, không bịa hoặc lặp
+   lại câu. Nếu không nghe rõ lời ứng viên thì để chuỗi rỗng. Với
+   TU_CHOI_LUON, refusal_basis phải là explicit_job_refusal hoặc stop_contact;
+   mọi mã khác là none.
+6. Summary 3-5 câu chỉ dựa trên transcript này: bối cảnh, vướng mắc, ý định
+   sau cùng và việc HR cần làm. Không đưa chi tiết từ quy tắc vào summary.
+   Trích nguyên văn một câu quan trọng nếu nghe rõ. Ghi rõ ứng viên đã đồng ý
+   liên hệ Zalo/Facebook, tình trạng việc làm hiện tại hay đã nghỉ, nơi làm
+   nếu họ nói, thông tin đã tư vấn và số điện thoại nghe rõ; không đoán.
+   Nếu chỉ có lời hẹn gọi lại của HR, không viết thành ngày phỏng vấn đã chốt.
+7. appointment_date chỉ chứa YYYY-MM-DD khi hai bên xác nhận NGÀY phỏng vấn;
    thiếu ngày hoặc chỉ có ngày HR đề xuất thì null. Không cần giờ.
    Các mã khác luôn có appointment_date=null. Ngày bắt đầu đi làm ghi trong summary.
-5. Tính ngày tương đối từ ngày hệ thống ở trên. "Thứ Hai tuần sau" = {next_monday_date};
-   "thứ Hai tới" = {monday_after_next_date}. Không lấy năm/ngày ở ví dụ làm ngày cuộc gọi.
-6. HEN_XA: nếu ứng viên nói rõ số ngày/tuần, điền follow_up_days tương ứng
-   (2 tuần = 14 ngày; tháng sau ≈ 30 ngày); không rõ thì null để hệ thống
-   mặc định 7 ngày. Các mã khác: follow_up_days=null.
-7. Summary 3-5 câu, đủ bối cảnh, vướng mắc, quyết định cuối và việc HR cần làm tiếp.
-   Trích nguyên văn một câu quan trọng của ứng viên nếu nghe rõ. Nếu ứng viên đồng ý
-   kết bạn Zalo/Facebook, ghi rõ kênh và lời đáp; "dạ/vâng" sau lời đề nghị được
-   xem là đồng ý. Ghi số điện thoại nghe rõ; không đoán số bị mất. Với HEN_XA,
-   ghi thời gian hẹn; không rõ thời gian thì ghi cần gọi lại sau một tuần. Nếu
-   ngày 13/14 chỉ là đề xuất gọi lại, ghi vào summary nhưng appointment_date=null.
-   Nếu ứng viên đang làm nơi khác, ghi rõ nơi làm nếu họ nói, thông tin HR đã
-   tư vấn và thái độ sau khi nghe; không suy đoán tên công ty.
-8. candidate_evidence là câu nguyên văn của ỨNG VIÊN làm căn cứ cho reason_code;
-   để chuỗi rỗng khi audio không có lời ứng viên rõ ràng. Với TU_CHOI_LUON,
-   refusal_basis là explicit_job_refusal hoặc stop_contact; các mã khác là none.
-   Không bịa câu nói hoặc gán lời HR cho ứng viên.
-
-Ví dụ ranh giới:
-- "Mai anh ra, em cứ kết bạn Zalo, anh chấp nhận" → DI_LAM; summary ghi nguyên câu và HR cần đón.
-- "Anh đang làm chỗ khác, lương bên em bao nhiêu, gửi Zalo anh xem" → TRAO_DOI_THEM; summary ghi nơi đang làm, lương đã tư vấn và ứng viên muốn xem thêm qua Zalo.
-- "Trước anh làm ở Foxconn, giờ đang nghỉ" → ghi quá khứ trong summary; không suy ra ý định từ tình trạng việc làm.
-- "Anh đang làm rồi, không có nhu cầu chuyển việc" → TU_CHOI_LUON.
-- "Đừng gọi cho anh nữa" → TU_CHOI_LUON, refusal_basis=stop_contact.
-- "Em đồng ý kết bạn Zalo để xem thông tin" → TRAO_DOI_THEM nếu chưa nói muốn phỏng vấn/đi làm.
-- "Em đi phỏng vấn được, ngày nào để nhắn Zalo sau" → HEN_PHONG_VAN, appointment_date=null.
-- "Để tháng sau mình nói tiếp" → HEN_XA, summary ghi tháng sau.
-- "Không đi xe máy được, mai anh bắt xe lên nhà máy" → DI_LAM.
-- "Thứ Hai anh không kịp xe vì việc gia đình; có thể đi phỏng vấn trước ngày 15; ngày 13/14 em gọi lại nhé" → HEN_PHONG_VAN. Chưa chốt ngày phỏng vấn nên appointment_date=null; summary ghi việc gia đình, mốc 13/14, khả năng đi trước 15 và cần xác nhận lại.
+8. Tính ngày tương đối từ ngày hệ thống ở trên. "Thứ Hai tuần sau" = {next_monday_date};
+   "thứ Hai tới" = {monday_after_next_date}. Không lấy ngày từ cuộc khác.
+   HEN_XA: nếu ứng viên nói rõ số ngày/tuần thì điền follow_up_days tương ứng;
+   không rõ thì null để hệ thống mặc định 7 ngày. Các mã khác: follow_up_days=null.
 
 Chỉ trả JSON thuần:
 {{
