@@ -25,7 +25,8 @@ JUDGE_USER_PROMPT_TEMPLATE = """Hãy đánh giá kết quả phân tích cuộc 
 ## HỆ THỐNG PHÂN LOẠI:
 - Nhóm 1: Đóng hồ sơ (TU_CHOI_LUON, KNM_DAP_MAY, SAI_SO_NHAM_SO)
 - Nhóm 2: Cần gọi lại (KHACH_BAN, CUOC_GOI_RONG, LOI_AM_THANH)
-- Nhóm 3: Tiếp tục chăm sóc (SUY_NGHI_THEM, TRAO_DOI_THEM, CHO_GIAY_TO, HEN_XA)
+- Nhóm 3: Tiếp tục chăm sóc (TRAO_DOI_THEM, HEN_XA). TRAO_DOI_THEM gồm
+  ứng viên còn cân nhắc, chỉ muốn trao đổi thêm hoặc đang chờ giấy tờ.
 - Nhóm 4: Ứng viên đồng ý phỏng vấn, có thể chưa chốt ngày (HEN_PHONG_VAN)
 - Nhóm 5: Ứng viên sẵn sàng đi làm (DI_LAM)
 

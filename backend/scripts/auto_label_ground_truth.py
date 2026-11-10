@@ -16,7 +16,7 @@ sys.path.append(str(BACKEND_ROOT))
 from app.classification.llm import ClassificationNeedsReview
 
 DEFAULT_AUDIO_DIR = REPO_ROOT / "data/recordings_import/audio"
-DEFAULT_OUTPUT_CSV = REPO_ROOT / "data/recordings_import/ground_truth_review_713_v3.csv"
+DEFAULT_OUTPUT_CSV = REPO_ROOT / "data/recordings_import/ground_truth_review_713_merged.csv"
 DEFAULT_EXPECTED_COUNT = 713
 
 COLUMNS = [

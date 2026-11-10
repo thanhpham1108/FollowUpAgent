@@ -10,9 +10,7 @@ class ReasonCode(str, Enum):
     KHACH_BAN = "KHACH_BAN"
     CUOC_GOI_RONG = "CUOC_GOI_RONG"
     LOI_AM_THANH = "LOI_AM_THANH"
-    SUY_NGHI_THEM = "SUY_NGHI_THEM"
     TRAO_DOI_THEM = "TRAO_DOI_THEM"
-    CHO_GIAY_TO = "CHO_GIAY_TO"
     HEN_XA = "HEN_XA"
     HEN_PHONG_VAN = "HEN_PHONG_VAN"
     DI_LAM = "DI_LAM"
@@ -39,9 +37,7 @@ REASON_CODE_GROUP = {
     ReasonCode.KHACH_BAN: 2,
     ReasonCode.CUOC_GOI_RONG: 2,
     ReasonCode.LOI_AM_THANH: 2,
-    ReasonCode.SUY_NGHI_THEM: 3,
     ReasonCode.TRAO_DOI_THEM: 3,
-    ReasonCode.CHO_GIAY_TO: 3,
     ReasonCode.HEN_XA: 3,
     ReasonCode.HEN_PHONG_VAN: 4,
     ReasonCode.DI_LAM: 5,

@@ -12,12 +12,10 @@ except ImportError:
     _PARKS = "Quang Châu, Vân Trung, Quế Võ, VSIP, Tràng Duệ"
 
 _RULES = {
-    ReasonCode.DI_LAM: "Ứng viên xác nhận sẽ nhận việc hoặc chủ động nói sẽ đến nhà máy để bắt đầu làm, kể cả ngày cụ thể sẽ nhắn qua Zalo; không cần HR xác nhận lại. Một khả năng còn điều kiện hoặc lời HR đề xuất chưa phải quyết định của ứng viên. Nếu đang thiếu giấy tờ bắt buộc thì dùng CHO_GIAY_TO.",
+    ReasonCode.DI_LAM: "Ứng viên xác nhận sẽ nhận việc hoặc chủ động nói sẽ đến nhà máy để bắt đầu làm, kể cả ngày cụ thể sẽ nhắn qua Zalo; không cần HR xác nhận lại. Một khả năng còn điều kiện hoặc lời HR đề xuất chưa phải quyết định của ứng viên. Nếu còn thiếu giấy tờ bắt buộc để nhận việc thì dùng TRAO_DOI_THEM và ghi rõ giấy tờ cần bổ sung trong summary.",
     ReasonCode.HEN_PHONG_VAN: "Ứng viên thể hiện rõ thiện chí và sẵn sàng đi phỏng vấn, kể cả khi còn phải sắp xếp hoặc đổi lịch. Chưa cần chốt ngày; HR sẽ liên hệ để chọn ngày. appointment_date chỉ điền khi hai bên xác nhận ngày phỏng vấn.",
-    ReasonCode.TRAO_DOI_THEM: "Hai bên đã trao đổi công việc nhưng ứng viên chưa đồng ý phỏng vấn, chưa sẵn sàng đi làm, chưa từ chối và cũng không nói cần suy nghĩ. Đồng ý kết bạn Zalo/Facebook chỉ để nhận thông tin vẫn thuộc mã này. Đang làm nơi khác chỉ là bối cảnh, không phải reason code.",
-    ReasonCode.CHO_GIAY_TO: "Ứng viên muốn tiếp tục nhưng đang chờ CCCD, giấy khám sức khỏe hoặc hồ sơ cần thiết; theo dõi giấy tờ trước khi chốt đi làm.",
+    ReasonCode.TRAO_DOI_THEM: "Hai bên đã trao đổi công việc nhưng ứng viên chưa chốt phỏng vấn/nhận việc và không từ chối. Bao gồm chỉ nhận thông tin qua Zalo/Facebook, cần suy nghĩ thêm, hoặc muốn tiếp tục nhưng đang chờ CCCD, giấy khám sức khỏe hay hồ sơ bắt buộc. Summary phải ghi rõ lý do còn theo dõi và việc HR cần làm. Đang làm nơi khác chỉ là bối cảnh, không phải reason code.",
     ReasonCode.HEN_XA: "Hai bên thống nhất liên hệ lại vào thời điểm xa hơn nhưng ứng viên chưa thể hiện rõ sẵn sàng phỏng vấn. Summary ghi mốc hẹn; nếu không rõ khoảng cách từ ngày cuộc gọi, mặc định gọi lại sau 7 ngày.",
-    ReasonCode.SUY_NGHI_THEM: "Ứng viên nói rõ cần suy nghĩ hoặc cân nhắc thêm trước khi quyết định. Chỉ hỏi thông tin mà không nói cần cân nhắc thì dùng TRAO_DOI_THEM.",
     ReasonCode.KHACH_BAN: "Ứng viên nói đang bận, yêu cầu liên hệ lại.",
     ReasonCode.CUOC_GOI_RONG: "Cuộc gọi dài nhưng không có nội dung tuyển dụng có ích, chỉ alo, im lặng hoặc nói chuyện không liên quan.",
     ReasonCode.LOI_AM_THANH: "Audio dài nhưng rè, mất tiếng hoặc transcript vô nghĩa khiến không hiểu được nội dung.",
@@ -64,8 +62,8 @@ Trước khi chọn reason_code, tự kiểm tra theo thứ tự (không in các
    chọn TU_CHOI_LUON; tuyệt đối không dùng suy đoán từ summary làm bằng chứng.
 4. Ứng viên xác nhận sẽ đến nhận việc/đi làm thì DI_LAM. Nếu thể hiện rõ
    sẵn sàng đi phỏng vấn thì HEN_PHONG_VAN, kể cả khi còn phải đổi ngày hoặc
-   chốt ngày sau qua Zalo. Chỉ hẹn Zalo để xem thông tin, chưa nói sẽ phỏng vấn
-   hay đi làm thì TRAO_DOI_THEM. Nếu nói rõ cần cân nhắc thì SUY_NGHI_THEM.
+   chốt ngày sau qua Zalo. Chỉ hẹn Zalo để xem thông tin, nói cần cân nhắc,
+   hoặc chờ giấy tờ bắt buộc trước khi nhận việc thì TRAO_DOI_THEM.
    Chọn các mã còn lại theo định nghĩa ở trên. Đang làm nơi khác không tự nó
    là lời từ chối. Khi không đủ căn cứ để khẳng định từ chối hay cam kết nhưng
    hai bên vẫn trao đổi việc làm, dùng TRAO_DOI_THEM.
@@ -88,6 +86,8 @@ Trước khi chọn reason_code, tự kiểm tra theo thứ tự (không in các
    sắp xếp, hay từ chối; nêu căn cứ trong lời nói/hành động, không đoán cảm xúc;
    (e) phương tiện, mốc dự kiến xuống nhận việc/phỏng vấn, ai cần xác nhận
    lịch và ứng viên cần hoàn thiện việc gì trước khi đi.
+   Với TRAO_DOI_THEM, nói rõ ứng viên còn cân nhắc, đang chờ giấy tờ nào,
+   hay chỉ muốn nhận thêm thông tin; HR phải theo dõi việc tương ứng.
    Không bắt buộc đủ mọi mục; bỏ mục vắng mặt để ưu tiên dữ kiện quan trọng.
    Phân biệt điều HR tư vấn với yêu cầu/cam kết của ứng viên. Ghi mức lương
    cơ bản, phụ cấp và thưởng đã trao đổi nếu transcript nói rõ khoản nào,

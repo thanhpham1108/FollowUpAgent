@@ -181,6 +181,12 @@ _ANALYSIS_OUTPUT_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Older Ollama JSON modes can still emit a removed code; never expose it to CRM.
+_LEGACY_REASON_CODE_ALIASES = {
+    "SUY_NGHI_THEM": ReasonCode.TRAO_DOI_THEM.value,
+    "CHO_GIAY_TO": ReasonCode.TRAO_DOI_THEM.value,
+}
+
 
 class LLMService:
     _instance: Optional["LLMService"] = None
@@ -430,7 +436,14 @@ class LLMService:
                         )
 
             # Chỉ suy ra hành động sau khi phân loại vượt qua kiểm tra từ chối.
-            reason_code = ReasonCode(parsed_data["reason_code"])
+            raw_reason_code = parsed_data["reason_code"]
+            reason_code = ReasonCode(_LEGACY_REASON_CODE_ALIASES.get(raw_reason_code, raw_reason_code))
+            if raw_reason_code != reason_code.value and trace_callback is not None:
+                trace_callback({
+                    "event": "reason_code_normalized",
+                    "from_reason_code": raw_reason_code,
+                    "reason_code": reason_code.value,
+                })
             if reason_code == ReasonCode.KNM_DAP_MAY and (
                 audio_duration_seconds is None or audio_duration_seconds >= 15
             ):

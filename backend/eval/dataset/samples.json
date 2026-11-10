@@ -11,7 +11,7 @@
     "contact_name": "Trần Thị Lan",
     "transcript": "A: Chị đã xem qua thông tin vị trí bên em chưa ạ? B: Có rồi, nghe cũng hay đó. Nhưng mà chị cần suy nghĩ thêm tí. A: Dạ vậy em gọi lại cho chị sau nhé. B: Ừ được.",
     "expected_status_group": 3,
-    "expected_reason_code": "SUY_NGHI_THEM"
+    "expected_reason_code": "TRAO_DOI_THEM"
   },
   {
     "id": "case_03_set_interview",
@@ -25,7 +25,7 @@
     "contact_name": "Phạm Thị Hoa",
     "transcript": "A: Chị ơi, chị có thể cung cấp CCCD để bên em hoàn tất hồ sơ không ạ? B: Ủa CCCD chị đang chờ làm lại, mấy tuần nữa mới có. A: Dạ vậy khi nào chị có thì báo em nhé. B: Ừ được.",
     "expected_status_group": 3,
-    "expected_reason_code": "CHO_GIAY_TO"
+    "expected_reason_code": "TRAO_DOI_THEM"
   },
   {
     "id": "case_05_start_work",
