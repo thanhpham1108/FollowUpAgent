@@ -52,15 +52,14 @@ Script gán nhãn mặc định đọc `data/recordings_import/audio` và ghi CS
 
 ### Chép WAV bằng Gipformer
 
-Đặt workbook mẫu `ground_truth_713_labeling.xlsx` trong `data/` và WAV trong `data/recordings_import/audio/`. Chạy từ thư mục gốc với [uv](https://docs.astral.sh/uv/getting-started/installation/):
+Đặt WAV trong `data/recordings_import/audio/` và chạy từ thư mục gốc với [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```bash
-uv run backend/scripts/transcribe_gipformer.py --limit 3 --output data/ground_truth_713_gipformer_pilot.xlsx
 uv run backend/scripts/transcribe_gipformer.py
 ```
 
-Lệnh đầu chép thử ba file. Lệnh sau chép 345 file từ `18678002.wav` đến `22052466.wav`, tách theo kênh và theo khoảng 20 giây. Gipformer tải trọng số ONNX vào cache ở lần đầu và chạy trên CPU. Có thể chỉ định `--audio-dir` và `--workbook` nếu dữ liệu nằm ở đường dẫn khác.
+Script chọn WAV theo thứ tự tên file, từ `18483292.wav` đến `22052024.wav` tính cả hai đầu (352 file trên bộ đầy đủ). Gipformer chạy trên CPU và chép riêng từng kênh theo khoảng 20 giây. Có thể dùng `--audio-dir` để đổi thư mục, hoặc `--limit 3` để chép thử ba file đầu.
 
-Job ghi transcript vào `Transcript_Short → Evidence` trong `data/ground_truth_713_gipformer.xlsx`, giữ các cột nhãn để rà sau. File JSONL cùng tên lưu từng kết quả để chạy tiếp bằng cùng lệnh nếu job bị ngắt. Job này chạy riêng với dịch vụ FastAPI và dùng model Gipformer cố định; giữ nguyên `PHOWHISPER_MODEL` trong `.env`. Kiểm tra thông tin cá nhân trong transcript trước khi chia sẻ.
+Đầu ra là `data/recordings_import/gipformer_18483292_22052024.jsonl`, một dòng cho mỗi WAV. Chạy lại cùng lệnh để tiếp tục từ dòng đã lưu cuối cùng. File JSONL này dùng riêng cho phạm vi mới. `PHOWHISPER_MODEL` vẫn là cấu hình của dịch vụ FastAPI. Kiểm tra thông tin cá nhân trong transcript trước khi chia sẻ.
 
 Không đưa `.env`, audio, CSV nhãn hoặc model weights vào Git.
