@@ -50,4 +50,17 @@ PYTHONPATH=backend python -m eval.run_eval
 
 Script gán nhãn mặc định đọc `data/recordings_import/audio` và ghi CSV/trace vào `data/recordings_import`; nó không tự xác nhận ground truth. Xem [hướng dẫn tải audio](thanh-workspace/guides/audio-from-crm-api.md), [quy tắc gán nhãn hiện tại](thanh-workspace/guides/labeling-guideline.md), [ghi chú workspace](thanh-workspace/README.md) và [mục lục báo cáo](Reports/README.md).
 
+### Chép WAV bằng Gipformer
+
+Đặt workbook mẫu `ground_truth_713_labeling.xlsx` trong `data/` và WAV trong `data/recordings_import/audio/`. Chạy từ thư mục gốc với [uv](https://docs.astral.sh/uv/getting-started/installation/):
+
+```bash
+uv run backend/scripts/transcribe_gipformer.py --limit 3 --output data/ground_truth_713_gipformer_pilot.xlsx
+uv run backend/scripts/transcribe_gipformer.py
+```
+
+Lệnh đầu chép thử ba file. Lệnh sau chép 345 file từ `18678002.wav` đến `22052466.wav`, tách theo kênh và theo khoảng 20 giây. Gipformer tải trọng số ONNX vào cache ở lần đầu và chạy trên CPU. Có thể chỉ định `--audio-dir` và `--workbook` nếu dữ liệu nằm ở đường dẫn khác.
+
+Job ghi transcript vào `Transcript_Short → Evidence` trong `data/ground_truth_713_gipformer.xlsx`, giữ các cột nhãn để rà sau. File JSONL cùng tên lưu từng kết quả để chạy tiếp bằng cùng lệnh nếu job bị ngắt. Job này chạy riêng với dịch vụ FastAPI và dùng model Gipformer cố định; giữ nguyên `PHOWHISPER_MODEL` trong `.env`. Kiểm tra thông tin cá nhân trong transcript trước khi chia sẻ.
+
 Không đưa `.env`, audio, CSV nhãn hoặc model weights vào Git.
